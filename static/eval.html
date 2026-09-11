@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>评测中心 · 评测集 / 单条测试 / 评测批次 / 版本对比</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  .card{background:#fff;border:1px solid #eef0f3;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#64748b;font-weight:600;text-align:left}
+  .inp{width:100%;border:1px solid #e2e8f0;border-radius:10px;padding:6px 9px;font-size:13px;background:#fff}
+  .inp:focus{outline:none;border-color:#f97316;box-shadow:0 0 0 2px rgba(249,115,22,.12)}
+  .lbl{display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600}
+  .chipbtn{border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;background:#fff;color:#475569;transition:all .12s}
+  .chipbtn.on{border-color:#f97316;background:#fff7ed;color:#c2410c;font-weight:600}
+  .tagbox{border:1px dashed #e2e8f0;border-radius:10px;padding:8px;display:flex;flex-wrap:wrap;gap:6px;min-height:34px}
+  .mini{font-size:11px;line-height:1.5}
+  details.step{border:1px solid #eef0f3;border-radius:10px;background:#fff}
+  details.step summary{cursor:pointer;list-style:none}
+  details.step summary::-webkit-details-marker{display:none}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+<header class="bg-white/85 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-[1500px] mx-auto px-4 py-2.5 flex items-center gap-3 flex-wrap">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-white grid place-items-center shadow shrink-0"><i class="fa fa-flask"></i></div>
+    <div class="leading-tight mr-auto">
+      <h1 class="font-bold">零食电商客服 · 评测中心</h1>
+      <p class="text-[11px] text-slate-500">评测集走<b>同一条真实主链路</b>（Planner→Validator→Skill/Tool→风控→RunRecord），按真实最终回复+Trace 规则评分 · ERROR≠产品质量FAIL，REVIEW 单独展示</p>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">演示</a>
+      <a href="/ops" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">运营</a>
+      <a href="/eval" class="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium">评测</a>
+      <a href="/console" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">总控台</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-[1500px] mx-auto px-4 py-4 space-y-4">
+  <div id="toast" class="hidden fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg"></div>
+
+  <!-- 顶部统计 + 操作 -->
+  <div class="card p-4 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-2.5 mr-2">
+      <i class="fa fa-database text-slate-300 text-xl"></i>
+      <div class="leading-tight">
+        <div class="text-lg font-bold" id="statTotal">–</div>
+        <div class="text-[10px] text-slate-400">用例总数</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2.5 mr-2 px-3 border-l border-slate-100">
+      <div class="leading-tight">
+        <div class="text-lg font-bold text-emerald-600" id="statEnabled">–</div>
+        <div class="text-[10px] text-slate-400">已启用</div>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-1 text-[11px] mr-auto" id="statCats"></div>
+    <button onclick="openEditor(null)" class="px-3 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium shadow"><i class="fa fa-plus mr-1"></i>新增用例</button>
+    <div class="flex items-center gap-1.5 text-sm">
+      <input id="fromRunInput" placeholder="由 Run 沉淀：粘贴 runId 或 /runs/xxx 链接" class="inp !w-64"/>
+      <button onclick="addFromRun()" title="把某次运行的问题加入评测集" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm"><i class="fa fa-magic"></i> 由Run沉淀</button>
+    </div>
+  </div>
+
+  <!-- 评测集管理 -->
+  <div class="card">
+    <div class="p-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+      <span class="text-sm font-bold mr-1"><i class="fa fa-list-ul text-orange-500 mr-1"></i>评测集</span>
+      <select id="fCat" onchange="refresh()" class="inp !w-auto !py-1.5 text-xs"></select>
+      <select id="fDiff" onchange="refresh()" class="inp !w-auto !py-1.5 text-xs"></select>
+      <select id="fRisk" onchange="refresh()" class="inp !w-auto !py-1.5 text-xs"></select>
+      <select id="fDim" onchange="refresh()" class="inp !w-auto !py-1.5 text-xs"></select>
+      <select id="fEnabled" onchange="refresh()" class="inp !w-auto !py-1.5 text-xs"></select>
+      <input id="fQ" onkeydown="if(event.key==='Enter')refresh()" placeholder="搜索名称/问题/标签" class="inp !w-52 !py-1.5 text-xs"/>
+      <button onclick="refresh()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-white text-xs"><i class="fa fa-search"></i></button>
+      <span class="ml-auto text-xs text-slate-400" id="statFilter"></span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50/70">
+            <th class="px-3 py-2 w-8"><input type="checkbox" id="masterCheck" onchange="toggleMaster(this)" title="全选当前页"/></th>
+            <th class="px-2 py-2">用例</th>
+            <th class="px-2 py-2">分类</th>
+            <th class="px-2 py-2">难度/风险</th>
+            <th class="px-2 py-2">评测维度</th>
+            <th class="px-2 py-2">断言要点</th>
+            <th class="px-2 py-2 w-40">来源/操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="p-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+      <span class="text-slate-400 mr-1"><i class="fa fa-rocket text-orange-400 mr-1"></i>单条「跑一次」逐条走真实主链路；批量请先挑选用例再「创建并运行批次」：</span>
+      <button onclick="setPickChecked(true)" class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium"><i class="fa fa-check-square-o"></i> 勾选 N 例 → 批次</button>
+      <button onclick="setPickEnabled(true)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs"><i class="fa fa-check-circle-o"></i> 全部启用 → 批次</button>
+      <button onclick="setPickLast(true)" class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs"><i class="fa fa-history"></i> 复用上一批 → 批次</button>
+      <span class="ml-auto text-[11px] text-slate-400">评分证据可溯源到 runId；多版本批次可在下方做「版本对比」</span>
+    </div>
+  </div>
+
+  <!-- 评测批次：创建 + 进度轮询 + 结果报告 -->
+  <div id="evalBatchCard" class="card scroll-mt-16">
+    <div class="p-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+      <span class="text-sm font-bold"><i class="fa fa-cubes text-orange-500 mr-1"></i>评测批次（持久化 · 每例真实复用同一条主链路 runner.run_run）</span>
+      <span id="judgeBadge" title="" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500"><i class="fa fa-balance-scale mr-1"></i>规则评测 · Judge 未启用</span>
+      <span id="btActiveTag" class="hidden text-[11px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700"></span>
+      <div class="ml-auto flex gap-1.5">
+        <button id="btnCancelBatch" onclick="cancelBatchRun()" class="hidden px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-medium"><i class="fa fa-stop"></i> 取消</button>
+        <button id="btnCreateBatch" onclick="createBatch()" class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium shadow"><i class="fa fa-play"></i> 创建并运行批次</button>
+      </div>
+    </div>
+    <div class="p-3 grid grid-cols-1 md:grid-cols-4 gap-2.5 border-b border-slate-100">
+      <div><label class="lbl">批次名称</label><input id="btName" class="inp" value="评测批次"/></div>
+      <div><label class="lbl">版本标签</label><input id="btVersion" class="inp" placeholder="如 v2 / 修复算价后" value=""/></div>
+      <div class="md:col-span-2"><label class="lbl">变更说明 changeNote（本次想改/验证什么）</label><input id="btNote" class="inp" placeholder="如：重开 compute_price 并关闭 query_service，验证算价修复 / 服务回归"/></div>
+    </div>
+    <div class="px-3 py-2.5 border-b border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+      <span class="font-semibold text-slate-500">本次运行：</span>
+      <span id="btPickCount" class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold"></span>
+      <div id="btPick" class="flex flex-wrap gap-1 items-center"></div>
+      <div class="ml-auto flex gap-1.5">
+        <button onclick="setPickLast()" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="第二次回归默认复用第一批"><i class="fa fa-history"></i> 复用上一批</button>
+        <button onclick="setPickEnabled()" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="选用全部启用用例"><i class="fa fa-check-square-o"></i> 全部启用集</button>
+        <button onclick="setPickChecked()" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="把上方表格勾选带入本批"><i class="fa fa-arrow-up"></i> 从表格勾选</button>
+        <button onclick="setPickNone()" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]">清空</button>
+      </div>
+    </div>
+    <div id="batchProgress" class="px-3 py-2.5 border-b border-slate-100 text-xs space-y-2 hidden"></div>
+    <div class="overflow-x-auto" id="batchReportWrap">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50/70">
+            <th class="px-3 py-2">结果</th><th class="px-2 py-2">用例</th><th class="px-2 py-2 w-[300px]">实际最终回复</th>
+            <th class="px-2 py-2">说明 / 证据</th><th class="px-2 py-2">耗时</th><th class="px-2 py-2 w-24">溯源</th>
+          </tr>
+        </thead>
+        <tbody id="batchBody"></tbody>
+      </table>
+      <div id="batchEmpty" class="p-10 text-center text-slate-400 text-sm">尚未运行评测批次 —— 勾选用例后点「创建并运行批次」。<br/>也可先到「批次库」回看历史批次，或做「版本对比」。</div>
+    </div>
+  </div>
+
+  <!-- 批次库 + 版本对比 -->
+  <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
+    <div class="card xl:col-span-3">
+      <div class="p-3 border-b border-slate-100 flex items-center gap-2">
+        <span class="text-sm font-bold"><i class="fa fa-history text-orange-500 mr-1"></i>批次库</span>
+        <span id="libMeta" class="text-[11px] text-slate-400"></span>
+        <button onclick="loadBatchLib(true)" class="ml-auto px-2 py-1 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" title="刷新批次库"><i class="fa fa-refresh"></i></button>
+      </div>
+      <div id="btLibBody" class="overflow-x-auto"></div>
+    </div>
+    <div class="card xl:col-span-2">
+      <div class="p-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold"><i class="fa fa-code-fork text-orange-500 mr-1"></i>版本对比</span>
+          <button onclick="swapCompare()" class="px-2 py-1 rounded-lg border border-slate-200 text-xs hover:bg-slate-50" title="交换 A/B"><i class="fa fa-exchange"></i> 交换</button>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2 text-xs items-center">
+          <select id="cmpA" onchange="renderCompare()" class="inp !w-auto !py-1.5"></select>
+          <select id="cmpB" onchange="renderCompare()" class="inp !w-auto !py-1.5"></select>
+          <span class="text-slate-400">服务端按创建时间归一：较早=base，较晚=cur</span>
+        </div>
+      </div>
+      <div id="cmpBody" class="p-3 text-xs text-slate-400">在上方选两个批次查看逐例差异（含「已修复 / 新增失败」）。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 用例编辑器 -->
+<div id="modal" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-auto shadow-xl">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-2 z-10">
+      <h3 id="modalTitle" class="font-bold text-sm flex-1"></h3>
+      <button type="button" title="关闭" onclick="closeModal()" class="w-7 h-7 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="modalBody" class="p-5"></div>
+  </div>
+</div>
+
+<!-- 单条运行详情 -->
+<div id="runModal" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] overflow-auto shadow-xl">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-2 z-10">
+      <h3 id="runTitle" class="font-bold text-sm flex-1"></h3>
+      <button type="button" title="关闭" onclick="closeRun()" class="w-7 h-7 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="runBody" class="p-5"></div>
+  </div>
+</div>
+
+<script>
+// ----------------------------------------------------------------- helpers
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function toast(msg,ok=true){const t=$("#toast");t.textContent=msg;t.className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg "+(ok?"bg-emerald-600":"bg-rose-600");t.classList.remove("hidden");clearTimeout(toast._tm);toast._tm=setTimeout(()=>t.classList.add("hidden"),2600);}
+function openModal(title,html){$("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#modal").classList.remove("hidden");try{fillEditorChips();}catch(e){}}
+function closeModal(){$("#modal").classList.add("hidden");}
+function closeRun(){$("#runModal").classList.add("hidden");}
+async function api(path,opts){const r=await fetch(path,opts);const j=await r.json().catch(()=>({ok:false,error:"响应解析失败"}));if(!j||j.ok===false)throw new Error((j&&j.error)||("请求失败 "+path));return j;}
+async function post(path,body){return api(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});}
+async function patch(path,body){return api(path,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});}
+function dimsText(ds){return (ds||[]).map(d=>{const m=(META&&META.dimensions)||[];const l=(m.find(x=>x.key===d)||{}).label;return l||d;}).join("、")||"–";}
+function stChip(st){
+  const map={PASS:["bg-emerald-100 text-emerald-700","PASS"],FAIL:["bg-rose-100 text-rose-700","FAIL"],
+             REVIEW:["bg-amber-100 text-amber-700","REVIEW"],ERROR:["bg-slate-200 text-slate-600","ERROR"],
+             ok:["bg-emerald-100 text-emerald-700","正常"],error:["bg-rose-100 text-rose-700","出错"],
+             degraded:["bg-amber-100 text-amber-700","受限"]};
+  const m=map[st]||["bg-slate-200 text-slate-600",st||"?"];
+  return `<span class="text-[11px] px-1.5 py-0.5 rounded-full font-bold ${m[0]}">${m[1]}</span>`;
+}
+function badge(txt,cls){return `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 ${cls||""}">${esc(txt)}</span>`;}
+function capTag(c){const sk=(STATE.skills||[]).find(s=>s.id===c), tl=(STATE.tools||[]).find(t=>t.id===c);return `<span class="text-[10px] px-1 py-0.5 rounded ${sk?"bg-sky-50 text-sky-700":(tl?"bg-violet-50 text-violet-700":"bg-slate-100 text-slate-500")}">${esc(c)}</span>`;}
+
+let META=null, STATE={cases:[],skills:[],tools:[],enabledIds:[]};
+const selEmpty="<option value=''>全部</option>";
+
+async function refresh(){
+  const params=new URLSearchParams();
+  if($("#fCat").value)params.set("category",$("#fCat").value);
+  if($("#fDiff").value)params.set("difficulty",$("#fDiff").value);
+  if($("#fRisk").value)params.set("risk",$("#fRisk").value);
+  if($("#fDim").value)params.set("dim",$("#fDim").value);
+  const en=$("#fEnabled").value; if(en!=="")params.set("enabled",en==="1");
+  const q=$("#fQ").value.trim(); if(q)params.set("q",q);
+  params.set("limit","1000");
+  const j=await api("/api/eval?"+params.toString());
+  META=j.meta; STATE.cases=j.cases; STATE.skills=j.skills; STATE.tools=j.tools;
+  STATE.enabledIds=j.enabledIds||[];
+  renderStat(j); renderTable();
+}
+function renderStat(j){
+  $("#statTotal").textContent=j.counts.total;
+  $("#statEnabled").textContent=j.counts.enabled;
+  const cats=j.counts.byCategory||{};
+  $("#statCats").innerHTML=Object.entries(cats).map(([k,v])=>`<span class="px-2 py-0.5 rounded-full bg-orange-50 border border-orange-100 text-orange-700">${esc(k)} ${v}</span>`).join("");
+  $("#statFilter").textContent=`过滤后 ${j.total} 条`;
+}
+function fillFilters(){
+  const m=META||{categories:[],difficulties:[],riskLevels:[],dimensions:[]};
+  $("#fCat").innerHTML=selEmpty+m.categories.map(x=>`<option>${esc(x)}</option>`).join("");
+  $("#fDiff").innerHTML=selEmpty+m.difficulties.map(x=>`<option value="${esc(x)}">${({easy:"简单",medium:"中等",hard:"困难"})[x]||x}</option>`).join("");
+  $("#fRisk").innerHTML=selEmpty+m.riskLevels.map(x=>`<option value="${esc(x)}">${({low:"低风险",mid:"中风险",high:"高风险"})[x]||x}</option>`).join("");
+  $("#fDim").innerHTML=selEmpty+m.dimensions.map(d=>`<option value="${esc(d.key)}">${esc(d.label)}</option>`).join("");
+  $("#fEnabled").innerHTML=selEmpty+"<option value='1'>仅启用</option><option value='0'>仅停用</option>";
+}
+function selChecked(){return $$("#tbody .rowcheck:checked").map(cb=>cb.value);}
+function toggleMaster(cb){$$("#tbody .rowcheck").forEach(x=>x.checked=cb.checked);}
+function toggleEnabled(id){const c=STATE.cases.find(x=>x.id===id);const v=!c.enabled;patch(`/api/eval/cases/${id}`,{enabled:v}).then(()=>{toast(v?"已启用":"已停用：不再进入默认课堂批跑集");refresh();}).catch(e=>toast(e.message,false));}
+function runRow(id){
+  const c=STATE.cases.find(x=>x.id===id);
+  openRun(c,{});
+}
+function renderTable(){
+  fillFilters();
+  const tb=$("#tbody");
+  if(!STATE.cases.length){tb.innerHTML="<tr><td colspan='7' class='px-4 py-10 text-center text-slate-400 text-sm'>没有符合条件的评测用例</td></tr>";return;}
+  tb.innerHTML=STATE.cases.map(c=>{
+    const kws=(c.expectedKeywords||[]).map(g=>`<span class="mini">${g.words.map(w=>`<span class="text-emerald-600">${esc(w)}</span>`).join(g.mode==="any"?" <span class='text-slate-300'>或</span> ":" + ")}</span>`).join("；");
+    const ex=(c.expectedReply||"").trim();
+    const forb=(c.forbiddenWords||[]).length?`<span class="text-rose-500 mini">禁：${c.forbiddenWords.map(esc).join("、")}</span>`:"";
+    const pr=(c.expectedPrice&&c.expectedPrice.amount!=null)?`<span class="text-sky-600 mini">期望 ¥${c.expectedPrice.amount}±${c.expectedPrice.tolerance||0.5}</span>`:"";
+    const req=(c.requiredCapabilities||[]).length?`<span class="mini">需：${c.requiredCapabilities.map(capTag).join("")}</span>`:"";
+    const forbcap=(c.forbiddenCapabilities||[]).length?`<span class="mini">禁能：${c.forbiddenCapabilities.map(capTag).join("")}</span>`:"";
+    const expectRisk=c.expectRisk==null?"":`<span class="text-[10px] px-1 py-0.5 rounded bg-${c.expectRisk?"rose-100 text-rose-600":"emerald-100 text-emerald-700"}">${c.expectRisk?"期望识别风险":"期望无风险"}</span>`;
+    return `<tr class="border-t border-slate-50 hover:bg-orange-50/30 align-top">
+      <td class="px-3 py-2"><input type="checkbox" class="rowcheck" value="${c.id}" onchange="if(!this.checked)$('#masterCheck').checked=false"/></td>
+      <td class="px-2 py-2">
+        <div class="flex items-center gap-1.5"><span class="font-medium text-slate-800">${esc(c.name)}</span>${stChip(c.enabled?"ok":"degraded").replace("正常","启用").replace("受限","停用")}</div>
+        <div class="text-xs text-slate-500 mt-0.5 max-w-[320px] line-clamp-2">${esc(c.question)}</div>
+        <div class="text-[10px] text-slate-400 mt-0.5 mono">${esc(c.id)}</div>
+      </td>
+      <td class="px-2 py-2">${badge(c.category)}<div class="text-[10px] text-slate-400 mt-1">${(c.tags||[]).map(esc).join(" · ")}</div></td>
+      <td class="px-2 py-2 mini">${badge({easy:"简单",medium:"中等",hard:"困难"}[c.difficulty]||c.difficulty)}<br/>${badge({low:"低",mid:"中",high:"高"}[c.riskLevel]||c.riskLevel,"bg-"+({low:"emerald-50 text-emerald-600",mid:"amber-50 text-amber-600",high:"rose-50 text-rose-600"}[c.riskLevel]||"")+"")}${expectRisk?"<br/>"+expectRisk:""}</td>
+      <td class="px-2 py-2 mini">${dimsText(c.evalDimension)}</td>
+      <td class="px-2 py-2 mini">
+        ${kws?`<div>${kws}</div>`:""}
+        ${ex?`<div class="text-slate-600">须含整句「${esc(ex)}」</div>`:""}
+        ${forb?`<div>${forb}</div>`:""}
+        ${pr?`<div>${pr}</div>`:""}
+        <div class="flex flex-wrap gap-1">${req}${forbcap}</div>
+      </td>
+      <td class="px-2 py-2">
+        <div class="text-[10px] text-slate-400">${c.sourceRunId?`来源 Run <a href="/runs/${esc(c.sourceRunId)}" target="_blank" class="text-sky-600 underline">${esc(c.sourceRunId)}</a>`:"人工创建"}</div>
+        <div class="flex flex-wrap gap-1 mt-1">
+          <button onclick="openRunById('${c.id}')" class="px-2 py-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-medium"><i class="fa fa-play"></i> 跑一次</button>
+          <button onclick="openEditor('${c.id}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button onclick="copyCase('${c.id}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="复制"><i class="fa fa-copy"></i></button>
+          <button onclick="toggleEnabled('${c.id}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]" title="启用/停用">${c.enabled?'<i class="fa fa-eye-slash"></i>':'<i class="fa fa-eye"></i>'}</button>
+          <button onclick="deleteCase('${c.id}')" class="px-2 py-1 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 text-[11px]" title="删除"><i class="fa fa-trash-o"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+  $("#masterCheck").checked = $$("#tbody .rowcheck").length>0 && $$("#tbody .rowcheck").every(x=>x.checked);
+}
+async function copyCase(id){try{const j=await post(`/api/eval/cases/${id}/copy`,{});toast("已复制为「"+j.case.name+"」");refresh();}catch(e){toast(e.message,false);}}
+async function deleteCase(id){if(!confirm("删除该评测用例？该操作不可恢复。"))return;try{await api(`/api/eval/cases/${id}`,{method:"DELETE"});toast("已删除");refresh();}catch(e){toast(e.message,false);}}
+async function addFromRun(){let raw=($("#fromRunInput").value||"").trim();if(!raw){toast("请先粘贴 runId 或 /runs/xxx 链接",false);return;}const m=raw.match(/\/runs\/([a-f0-9]+)/i);const runId=m?m[1]:raw;
+  try{const j=await post("/api/eval/cases",{fromRunId:runId});toast("已从 Run 沉淀为用例");openEditorById(j.case.id);refresh();}catch(e){toast(e.message,false);}}
+function openEditorById(id){const c=STATE.cases.find(x=>x.id===id);if(c)openEditor(id);}
+function openEditor(id){const c=id?STATE.cases.find(x=>x.id===id):null;
+  const f=(k,d)=>c&&c[k]!=null?c[k]:d;
+  const kw=()=>{
+    let groups=(c&&c.expectedKeywords)||[];
+    if(!groups.length)groups=[{words:[],mode:"all"}];
+    return groups;
+  };
+  // 收集当前组的 HTML（渲染后 JS 里读 DOM 重新解析，这里仅存初值到 input）
+  const kwHtml=(kw()||[]).map((g,gi)=>`
+    <div class="kwgroup flex gap-1.5 items-center">
+      <input data-i="${gi}" class="kw-w inp flex-1 !py-1.5" value="${esc((g.words||[]).join("，"))}" placeholder="词，逗号分隔"/>
+      <select data-i="${gi}" class="kw-m inp !w-auto !py-1.5"><option value="all" ${g.mode==="all"?"selected":""}>全含</option><option value="any" ${g.mode==="any"?"selected":""}>任一</option></select>
+      <button type="button" onclick="kwDel(this)" class="w-7 h-7 grid place-items-center rounded-lg text-slate-400 hover:text-rose-500"><i class="fa fa-times"></i></button>
+    </div>`).join("");
+  openModal(c?("编辑用例 · "+c.name):"新增评测用例",`
+  <input type="hidden" id="fid" value="${c?c.id:""}"/>
+  <input type="hidden" id="fsrcRun" value="${esc(f("sourceRunId","")||"")}"/>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div class="md:col-span-2 grid grid-cols-2 gap-3">
+      <div><label class="lbl">用例名称 *</label><input id="fname" class="inp" value="${esc(f("name",""))}"/></div>
+      <div><label class="lbl">提问 *</label><input id="fquestion" class="inp" value="${esc(f("question",""))}"/></div>
+    </div>
+    <div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><label class="lbl">分类</label><select id="fcategory" class="inp">${META.categories.map(x=>`<option ${f("category","推荐")===x?"selected":""}>${esc(x)}</option>`).join("")}</select></div>
+        <div><label class="lbl">难度</label><select id="fdifficulty" class="inp">${META.difficulties.map(x=>`<option value="${x}" ${f("difficulty","easy")===x?"selected":""}>${({easy:"简单",medium:"中等",hard:"困难"})[x]||x}</option>`).join("")}</select></div>
+        <div><label class="lbl">风险级</label><select id="friskLevel" class="inp">${META.riskLevels.map(x=>`<option value="${x}" ${f("riskLevel","low")===x?"selected":""}>${({low:"低",mid:"中",high:"高"})[x]||x}</option>`).join("")}</select></div>
+      </div>
+      <div class="mt-2"><label class="lbl">风险识别预期 expectRisk</label><select id="fexpectRisk" class="inp">
+        <option value="">不设该项</option><option value="true" ${f("expectRisk","")===true?"selected":""}>应识别为风险（安全话术放行）</option><option value="false" ${f("expectRisk","")===false?"selected":""}>应属正常诉求</option>
+      </select></div>
+      <div class="mt-2"><label class="lbl">期望行为 expectedBehavior</label><textarea id="fbehavior" rows="3" class="inp">${esc(f("expectedBehavior",""))}</textarea></div>
+    </div>
+    <div>
+      <div><label class="lbl">期望关键词组（AND 组间 / 组内 all·any）</label><div id="kwBox" class="space-y-1.5">${kwHtml}</div>
+        <button type="button" onclick="kwAdd()" class="mt-1.5 text-xs text-orange-600 hover:underline"><i class="fa fa-plus"></i> 加一组关键词</button></div>
+      <div class="mt-2"><label class="lbl">期望整句包含 expectedReply</label><input id="fexpectedReply" class="inp" value="${esc(f("expectedReply",""))}" placeholder="如：预计到手价…（整体必须出现）"/></div>
+      <div class="mt-2 grid grid-cols-3 gap-2">
+        <div class="col-span-2"><label class="lbl">禁词 forbiddenWords（逗号分隔）</label><input id="fforbidden" class="inp" value="${esc((f("forbiddenWords",[])).join("，"))}"/></div>
+        <div><label class="lbl">期望价格 expectedPrice</label>
+          <div class="flex gap-1.5 items-center"><input id="fpriceAmt" type="number" step="0.1" placeholder="金额" class="inp" value="${f("expectedPrice",{}).amount??""}"/><input id="fpriceTol" type="number" step="0.1" placeholder="±容差" class="inp" value="${f("expectedPrice",{}).tolerance??"0.5"}"/></div></div>
+      </div>
+      <div class="mt-2"><label class="lbl">标签 tags（逗号分隔）</label><input id="ftags" class="inp" value="${esc((f("tags",[])).join("，"))}"/></div>
+    </div>
+    <div class="md:col-span-2 grid grid-cols-2 gap-3">
+      <div>
+        <label class="lbl">必需能力 requiredCapabilities（Skill/Tool 须真实执行成功）</label>
+        <div class="tagbox" id="reqbox">${capChips("req")}</div>
+        <div class="flex gap-1 mt-1 text-[10px] text-slate-400">${(STATE.skills||[]).map(s=>`<span class="px-1 py-0.5 rounded bg-sky-50 text-sky-600">S:${esc(s.id)}</span>`).join("")}${(STATE.tools||[]).map(t=>`<span class="px-1 py-0.5 rounded bg-violet-50 text-violet-600">T:${esc(t.id)}</span>`).join("")}</div>
+      </div>
+      <div>
+        <label class="lbl">禁用能力 forbiddenCapabilities（若真实执行则判 FAIL）</label>
+        <div class="tagbox" id="forbbox">${capChips("forb")}</div>
+      </div>
+    </div>
+    <div class="md:col-span-2">
+      <label class="lbl">评测维度 evalDimension</label>
+      <div id="dimsBox" class="flex flex-wrap gap-1.5">${META.dimensions.map(d=>`<button type="button" data-v="${d.key}" onclick="dimToggle(this)" class="chipbtn ${(f("evalDimension",[])||[]).includes(d.key)?"on":""}">${esc(d.label)}</button>`).join("")}</div>
+    </div>
+    <div class="md:col-span-2">
+      <label class="lbl">llmJudgePrompt（可选：LLM 评审尚未接通，当前恒走规则法 judge=rules，绝不伪造成模型判分）</label>
+      <textarea id="fllm" rows="2" class="inp mono text-xs">${esc(f("llmJudgePrompt",""))}</textarea>
+    </div>
+    <div class="md:col-span-2 grid grid-cols-2 gap-2 text-xs">
+      <div class="text-slate-400">${c&&c.sourceRunId?`由 Run <b class="mono">${esc(c.sourceRunId)}</b> 沉淀`:"人工新建"}</div>
+      <div class="text-right"><label class="inline-flex items-center gap-1.5"><input id="fenabled" type="checkbox" ${f("enabled",true)?"checked":""}/> 启用（进入默认课堂批跑集）</label></div>
+    </div>
+  </div>
+  <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
+    <button onclick="closeModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600">取消</button>
+    <button onclick="saveCase()" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-medium"><i class="fa fa-save mr-1"></i>保存</button>
+  </div>`);
+}
+function capChips(kind){
+  const c=$("#modal")?null:null; // 初值在下方读取，这里基于 STATE.cases 兜底为空（编辑态初值由 openEditor 渲染后统一填充）
+  const chosen=(c&&c[kind==="req"?"requiredCapabilities":"forbiddenCapabilities"])||[];
+  const pool=[...(STATE.skills||[]).map(s=>({id:s.id,type:"skill",name:s.name})),...(STATE.tools||[]).map(t=>({id:t.id,type:"tool",name:t.name}))];
+  return pool.map(p=>`<button type="button" data-v="${esc(p.id)}" onclick="capToggle(this,'${kind==="req"?"reqbox":"forbbox"}')" class="chipbtn ${chosen.includes(p.id)?"on":""}">${p.type==="skill"?"S":"T"}·${esc(p.id)}</button>`).join("");
+}
+function fillEditorChips(){
+  // 重新给能力按钮打上编辑态初值；非用例编辑器(#fid 缺失)直接返回
+  const fid=$("#fid");if(!fid)return;
+  const cId=fid.value;const c=STATE.cases.find(x=>x.id===cId);
+  if(!c)return;
+  const setOn=(boxId,arr)=>{$$("#"+boxId+" .chipbtn").forEach(b=>b.classList.toggle("on",(arr||[]).includes(b.dataset.v)));};
+  setOn("reqbox",c.requiredCapabilities||[]);
+  setOn("forbbox",c.forbiddenCapabilities||[]);
+  $$("#dimsBox .chipbtn").forEach(b=>b.classList.toggle("on",(c.evalDimension||[]).includes(b.dataset.v)));
+}
+function kwAdd(){const n=$$("#kwBox .kwgroup").length;const d=document.createElement("div");d.className="kwgroup flex gap-1.5 items-center";
+  d.innerHTML=`<input data-i="${n}" class="kw-w inp flex-1 !py-1.5" placeholder="词，逗号分隔"/><select data-i="${n}" class="kw-m inp !w-auto !py-1.5"><option value="all">全含</option><option value="any">任一</option></select><button type="button" onclick="kwDel(this)" class="w-7 h-7 grid place-items-center rounded-lg text-slate-400 hover:text-rose-500"><i class="fa fa-times"></i></button>`;
+  $("#kwBox").appendChild(d);}
+function kwDel(btn){const box=$("#kwBox");if(box.children.length<=1){toast("至少保留一组关键词（可留空）",false);return;}btn.closest(".kwgroup").remove();}
+function capToggle(btn,boxId){btn.classList.toggle("on");}
+function dimToggle(btn){btn.classList.toggle("on");}
+function splitCsv(v){return String(v||"").split(/[，,、\n]/).map(s=>s.trim()).filter(Boolean);}
+async function saveCase(){
+  const groups=$$("#kwBox .kwgroup").map(g=>({words:splitCsv(g.querySelector(".kw-w").value),mode:g.querySelector(".kw-m").value})).filter(g=>g.words.length);
+  const amt=$("#fpriceAmt").value;
+  const expectedPrice=(amt!==""&&amt!=null)?{amount:parseFloat(amt),tolerance:parseFloat($("#fpriceTol").value||"0.5")}:null;
+  const body={
+    name:$("#fname").value.trim(),question:$("#fquestion").value.trim(),
+    category:$("#fcategory").value,difficulty:$("#fdifficulty").value,riskLevel:$("#friskLevel").value,
+    expectRisk:$("#fexpectRisk").value===""?null:$("#fexpectRisk").value==="true",
+    expectedBehavior:$("#fbehavior").value.trim(),
+    expectedKeywords:groups,expectedReply:$("#fexpectedReply").value.trim(),
+    forbiddenWords:splitCsv($("#fforbidden").value),
+    expectedPrice,
+    requiredCapabilities:$$("#reqbox .chipbtn.on").map(b=>b.dataset.v),
+    forbiddenCapabilities:$$("#forbbox .chipbtn.on").map(b=>b.dataset.v),
+    evalDimension:$$("#dimsBox .chipbtn.on").map(b=>b.dataset.v),
+    tags:splitCsv($("#ftags").value),llmJudgePrompt:$("#fllm").value.trim(),
+    enabled:$("#fenabled").checked,
+  };
+  if(!body.name){toast("用例名称不能为空",false);return;}
+  if(!body.question){toast("提问(question)不能为空",false);return;}
+  const id=$("#fid").value;
+  try{
+    if(id){await patch(`/api/eval/cases/${id}`,body);}else{await post("/api/eval/cases",body);}
+    closeModal(); toast(id?"已保存":"已创建");
+    refresh();
+  }catch(e){toast(e.message,false);}
+}
+
+// ----------------------------------------------------------------- 单条跑：真实主链路 run→score
+function openRunById(id){const c=STATE.cases.find(x=>x.id===id);if(c)openRun(c,{});}
+async function openRun(c,opt){
+  $("#runModal").classList.remove("hidden");
+  $("#runTitle").innerHTML=`<i class="fa fa-play-circle text-orange-500 mr-1"></i>${esc(c.name)} · 走真实 Agent 主链路评测`;
+  $("#runBody").innerHTML=`<div class="py-14 text-center text-slate-400"><i class="fa fa-spinner fa-spin text-2xl"></i><div class="mt-2 text-sm">正在规划→校验→执行→风控…（真实调用 /demo 同链路 runner.run_run）</div></div>`;
+  try{
+    const j=await post(`/api/eval/cases/${c.id}/run`,opt);
+    renderRunResult(j,c);
+  }catch(e){
+    $("#runBody").innerHTML=secErr(e.message);
+  }
+}
+function secErr(msg){return `<div class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2"><i class="fa fa-exclamation-triangle mt-0.5"></i><div>${esc(msg)}</div></div>`;}
+function renderRunResult(j,c){
+  const sc=j.score||{}; const run=j.run||{};
+  const status=sc.status||"ERROR";
+  const fr=(run.finalReply&&typeof run.finalReply==="object")?run.finalReply:null;
+  const text=fr&&fr.text?fr.text:(run.finalReply||"");
+  const risk=run.risk||run.riskResult||{};
+  const mod=run.moderation||{};
+  const panel=[];
+
+  if(status==="ERROR"){
+    panel.push(`<div class="p-3 rounded-xl bg-slate-100 border border-slate-200 text-sm">${stChip("ERROR")}
+      <div class="mt-1 text-slate-700">${esc(sc.reason||"")}</div>
+      <div class="mt-1 text-[11px] text-slate-500"><i class="fa fa-info-circle"></i> ERROR 为执行/接口/工具故障，<b>不统计为产品质量 FAIL</b>。${run.error?"运行错误："+esc(run.error):""}</div></div>`);
+  }else{
+    // 最终回复
+    panel.push(`<div class="mb-3">
+      <div class="flex items-center gap-2 mb-1.5"><span class="text-xs text-slate-400 font-semibold">最终客服回复</span>${stChip(status)}
+      ${run.id?`<a href="/runs/${esc(run.id)}" target="_blank" class="ml-auto text-[11px] text-sky-600 underline mono">run:${esc(run.id)}</a>`:""}
+      ${sc.durationMs!=null?`<span class="text-[11px] text-slate-400 mono">${sc.durationMs}ms</span>`:""}</div>
+      ${text?`<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[13.5px] leading-relaxed whitespace-pre-wrap ${fr&&fr.blocked?"text-amber-700":""}">${esc(text)}</div>`:"<div class='text-rose-600 text-sm'>本次运行未产出客服回复文本。</div>"}
+      ${fr&&fr.blocked?`<div class="mt-1 text-xs text-amber-600"><i class="fa fa-shield mr-1"></i>该回复已被风控拦截（未发送给用户）</div>`:""}
+      ${risk.isRisky?`<div class="mt-1 text-xs text-orange-600"><i class="fa fa-shield mr-1"></i>风险诉求已识别（${esc(risk.riskType||"风险")}）→ 走安全劝止，不执行销售/收款</div>`:""}
+    </div>`);
+  }
+
+  // 判分理由/证据
+  panel.push(`<div class="mb-3">
+    <div class="text-xs text-slate-400 font-semibold mb-1">评分结论 · judge=<span class="mono">${esc(sc.judge||"rules")}</span>${sc.judgeNote?"（"+esc(sc.judgeNote)+"）":""}</div>
+    <div class="text-[13px] text-slate-700">${esc(sc.reason||"")}</div>`);
+  if((sc.evidence||[]).length)panel.push(`<ul class="mt-1.5 space-y-0.5">${sc.evidence.map(e=>`<li class="text-xs text-slate-500 flex gap-1.5"><i class="fa fa-angle-right text-slate-300 mt-0.5"></i>${esc(e)}</li>`).join("")}</ul>`);
+  const kws=[];
+  if((sc.keywordHits||[]).length)kws.push(`<span class="text-emerald-600">命中：${sc.keywordHits.map(esc).join("、")}</span>`);
+  if((sc.keywordMisses||[]).length)kws.push(`<span class="text-rose-500">缺失：${sc.keywordMisses.map(esc).join("、")}</span>`);
+  if((sc.forbiddenHits||[]).length)kws.push(`<span class="text-rose-500">禁词：${sc.forbiddenHits.map(esc).join("、")}</span>`);
+  if(sc.mentionedPrice&&sc.mentionedPrice.length)kws.push(`<span class="text-sky-600">回复含价：${sc.mentionedPrice.join("、")} 元</span>`);
+  const caps=(sc.capabilityHits||[]).filter(h=>!h.ok);
+  if(kws.length)panel.push(`<div class="flex flex-wrap gap-1.5 mt-2 text-xs">${kws.join("")}</div>`);
+  if(caps.length)panel.push(`<div class="flex flex-wrap gap-1.5 mt-1.5 text-xs">${caps.map(h=>`<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600">${h.kind==="required"?"必需能力未执行：":"禁用能力被真实执行："}${esc(h.capability)}</span>`).join("")}</div>`);
+  const ris=(sc.riskIssues||[]);
+  if(ris.length)panel.push(`<ul class="mt-1.5 space-y-0.5">${ris.map(r=>`<li class="text-xs flex gap-1.5 ${r.severity==="fail"?"text-rose-500":r.severity==="review"?"text-amber-600":"text-slate-400"}"><i class="fa ${r.severity==="fail"?"fa-times-circle":r.severity==="review"?"fa-question-circle":"fa-info-circle"} mt-0.5"></i>${esc(r.detail)}</li>`).join("")}</ul>`);
+  panel.push(`</div>`);
+
+  // Trace（错误时也展示以定位问题）
+  const steps=run.steps||[];
+  panel.push(`<div class="text-xs text-slate-400 font-semibold mb-1.5">执行 Trace（${steps.length} 步 · 全部来自真实 RunRecord）</div>`);
+  if(!steps.length)panel.push(`<div class="text-xs text-slate-400">本次运行无执行步骤${run.error?"（运行中断）":""}</div>`);
+  panel.push(`<div class="space-y-1.5">${steps.map(s=>{
+    const sId=s.stepId||`${s.index||""}.${s.type||""}.${s.id||""}`;
+    const sst=s.status==="ok"?"bg-emerald-100 text-emerald-700":s.status==="error"?"bg-rose-100 text-rose-700":s.status==="skipped"?"bg-slate-100 text-slate-400":"bg-amber-100 text-amber-700";
+    const io=(key)=>s[key]!=null?`<div class="mono text-[11px] text-slate-500 mt-1 break-all"><span class="text-slate-400">${key}:</span> ${esc(typeof s[key]==="string"?s[key]:JSON.stringify(s[key],null,1))}</div>`:"";
+    return `<details class="step px-2.5 py-1.5" ${s.status==="error"?"open":""}>
+      <summary class="flex items-center gap-2">
+        <span class="mono text-[11px] text-slate-400 w-16 shrink-0">${esc(sId)}</span>
+        <span class="text-xs font-medium text-slate-700">${esc(s.name||s.id||"")}</span>
+        <span class="text-[10px] px-1 py-0.5 rounded-full ${sst}">${esc(s.status||"-")}</span>
+        ${s.note_log?`<span class="text-[10px] text-slate-400 truncate">${esc(s.note_log)}</span>`:""}
+        <span class="ml-auto text-slate-300 text-[11px]"><i class="fa fa-chevron-down"></i></span>
+      </summary>
+      <div class="pt-1 pb-1.5 border-t border-slate-50 mt-1">${io("inputs")}${io("output")}${s.error?`<div class="text-xs text-rose-600 mt-1"><i class="fa fa-exclamation-triangle"></i> ${esc(s.error)}</div>`:""}</div>
+    </details>`;
+  }).join("")}</div>`);
+
+  if(run.error&&status==="ERROR")panel.push(`<div class="mt-3">${secErr(run.error)}</div>`);
+  $("#runBody").innerHTML=panel.join("");
+}
+// ----------------------------------------------------------------- 评测批次（持久化 + 轮询 + 报告）
+const B={pick:null,last:[],lib:[],active:null,cur:null,running:false,timer:null,fails:0};
+function enabledIds(){return (STATE.enabledIds&&STATE.enabledIds.length)?[...STATE.enabledIds]:(STATE.cases||[]).filter(c=>c.enabled).map(c=>c.id);}
+function nameOf(id){const c=(STATE.cases||[]).find(x=>x.id===id);return c?c.name:id;}
+function msFmt(v){return (v==null||v==="")?"-":(typeof v==="number"?Math.round(v)+"ms":v);}
+function qattr(s){return String(s??"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");}
+
+function renderPick(){
+  const ids=B.pick||[];
+  $("#btPickCount").textContent=ids.length+" 例";
+  $("#btPick").innerHTML=ids.length
+    ? ids.map(id=>`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11px]">${esc(nameOf(id))}<i class="fa fa-times cursor-pointer hover:text-rose-500" onclick="setPickDrop('${esc(id)}')" title="移出"></i></span>`).join("")
+    : '<span class="text-slate-300">未选择 —— 可用右侧按钮挑选</span>';
+}
+function setPick(ids,scroll){
+  B.pick=ids?[...new Set(ids.filter(Boolean))]:[];
+  B.pickTouched=true;
+  renderPick();
+  if(scroll){const el=$("#evalBatchCard");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});}
+}
+function setPickDrop(id){setPick((B.pick||[]).filter(x=>x!==id));}
+function setPickChecked(scroll){const ids=selChecked();if(!ids.length){toast("表格没有勾选用例",false);return;}setPick(ids,scroll);toast(`已选用 ${ids.length} 例`);}
+function setPickEnabled(scroll){const ids=enabledIds();if(!ids.length){toast("当前没有启用用例",false);return;}setPick(ids,scroll);toast(`已选用全部启用 ${ids.length} 例`);}
+function setPickLast(scroll){const ids=B.last||[];if(!ids.length){toast("暂无上一批可复用",false);return;}setPick(ids,scroll);toast(`已复用上一批 ${ids.length} 例`);}
+function setPickNone(){setPick([]);}
+
+function bstChip(st){
+  const m={queued:["bg-slate-200 text-slate-600","排队"],running:["bg-sky-100 text-sky-700","执行中"],
+           done:["bg-emerald-100 text-emerald-700","完成"],error:["bg-rose-100 text-rose-700","出错"],
+           cancelled:["bg-slate-100 text-slate-500","已取消"]};
+  const x=m[st]||["bg-slate-200 text-slate-600",st||"?"];
+  return `<span class="text-[11px] px-1.5 py-0.5 rounded-full font-bold ${x[0]}">${x[1]}</span>`;
+}
+function setJudgeBadge(ev){
+  const jb=$("#judgeBadge");
+  const label=(ev&&ev.name==="rules")?("规则评测 · "+ev.version+" · Judge 未启用"):"规则评测 · Judge 未启用";
+  jb.innerHTML=`<i class="fa fa-balance-scale mr-1"></i>${esc(label)}`;
+  jb.title=(ev&&ev.judgeNote)||"规则法评分；未接通 LLM 评审，绝不展示虚假 Judge 分数。";
+}
+function refreshBtButtons(){
+  const busy=B.running||!!B.active;
+  const btn=$("#btnCreateBatch");
+  btn.disabled=busy;
+  btn.className="px-3 py-1.5 rounded-lg text-white text-xs font-medium shadow "+(busy?"bg-slate-300 cursor-not-allowed":"bg-orange-500 hover:bg-orange-600");
+  btn.innerHTML=busy?'<i class="fa fa-spinner fa-spin"></i> 已有批次在执行…':'<i class="fa fa-play"></i> 创建并运行批次';
+  $("#btnCancelBatch").classList.toggle("hidden",!(B.running&&B.cur));
+  const tag=$("#btActiveTag");
+  if(B.active&&B.active!==B.cur){
+    tag.classList.remove("hidden");
+    tag.innerHTML=`有批次在执行 <b class="mono">${esc(B.active)}</b> · <a href="javascript:startPoll('${esc(B.active)}')" class="underline">跟踪进度</a>`;
+  }else tag.classList.add("hidden");
+}
+async function createBatch(){
+  if(B.running||B.active){toast("当前已有批次在跑，不可并行创建（服务端会拒绝）",false);return;}
+  const ids=B.pick||[];
+  if(!ids.length){toast("请先挑选要运行的用例",false);return;}
+  const body={caseIds:ids,name:$("#btName").value.trim()||"评测批次",
+              versionLabel:$("#btVersion").value.trim(),changeNote:$("#btNote").value.trim()};
+  try{
+    const j=await post("/api/eval/batch/run",body);
+    toast("批次已创建并开始执行："+j.batchId);
+    B.running=true;startPoll(j.batchId);loadBatchLib();
+  }catch(e){
+    if(/已存在|评测批次/.test(e.message)){
+      toast("服务端拒绝并行创建（该请求可区分）→ 转去跟踪已有批次",false);
+      try{await loadBatchLib();}catch(_){}
+      if(B.active)startPoll(B.active);
+    }else toast(e.message,false);
+  }
+  refreshBtButtons();
+}
+function startPoll(bid){
+  if(B.timer)clearInterval(B.timer);
+  B.cur=bid;B.running=true;B.fails=0;refreshBtButtons();
+  const tick=async()=>{
+    try{
+      const j=await api("/api/eval/batch/"+bid);
+      B.fails=0;
+      renderProgress(j.batch);renderBatchReport(j.batch);
+      if(["done","error","cancelled"].indexOf(j.batch.status)>=0){
+        clearInterval(B.timer);B.timer=null;B.running=false;
+        renderProgress(j.batch);toast("批次终态："+(j.batch.status==="done"?"完成":j.batch.status));
+        loadBatchLib();refreshBtButtons();
+      }
+    }catch(e){
+      if(++B.fails>=90){ // ~>2 分钟兜底：停止自动轮询但保留报告
+        clearInterval(B.timer);B.timer=null;B.running=false;
+        const p=$("#batchProgress");p.classList.remove("hidden");
+        p.innerHTML+=`<div class="text-amber-600"><i class="fa fa-clock-o"></i> 轮询超时未到终态 —— 批次仍在服务端执行，可在「批次库」点查看或稍后再查。</div>`;
+        refreshBtButtons();
+      }
+    }
+  };
+  tick();B.timer=setInterval(tick,1200);
+}
+async function cancelBatchRun(){
+  if(!B.cur){toast("没有正在运行的批次",false);return;}
+  try{const j=await post("/api/eval/batch/"+B.cur+"/cancel",{});
+    toast("已请求取消批次 "+B.cur);renderProgress(j.batch);
+  }catch(e){toast(e.message,false);}
+}
+function renderProgress(batch){
+  const p=$("#batchProgress");p.classList.remove("hidden");
+  const st=batch.status,tot=batch.total||0,idx=batch.currentIndex||0;
+  const pct=tot?Math.min(100,Math.round(100*idx/tot)):0;
+  const runChip=(k,v,cls)=>`<span class="px-1.5 py-0.5 rounded-full text-[11px] font-bold ${cls}">${k} ${v}</span>`;
+  const judge=(batch.evaluator&&batch.evaluator.judgeNote)?"":"";
+  let inner="";
+  if(["done","error","cancelled"].indexOf(st)>=0){
+    inner=`<div class="flex flex-wrap items-center gap-2">
+      <span class="text-slate-500">批次 ${esc(batch.versionLabel?batch.versionLabel+" · ":"")}${esc(batch.name)}</span>${bstChip(st)}
+      ${batch.id?`<span class="mono text-slate-400">${esc(batch.id)}</span>`:""}
+      <span class="ml-1">${runChip("PASS",batch.passed,"bg-emerald-100 text-emerald-700")}${runChip("FAIL",batch.failed,"bg-rose-100 text-rose-700")}${runChip("REVIEW",batch.review,"bg-amber-100 text-amber-700")}${runChip("ERROR",batch.errors,"bg-slate-200 text-slate-600")}</span>
+      <span class="text-slate-500">${esc(batch.provider||"")?("· "+esc(batch.provider)+"/"+esc(batch.model||"")):""}</span>
+      <span class="ml-auto text-slate-400">共 ${tot} 例 · 规则评测（${esc(judge||"规则法评分，Judge 未启用")}）</span>
+    </div>`;
+    const failedN=(batch.failed||0),revN=(batch.review||0),errN=(batch.errors||0);
+    if(st==="error"||failedN||revN||errN){
+      const den=batch.passed+batch.failed+batch.review;
+      const rate=den?Math.round(100*batch.passed/den)+"%":"-";
+      inner+=`<div class="text-slate-500 mt-1">含 ERROR 通过率 ${batch.passed}/${den}（${rate}，ERROR 不计入分母 ${errN} 条） · 完成于 ${esc(batch.finishedAt||"")}${batch.changeNote?" · "+esc(batch.changeNote):""}</div>`;
+    }
+  }else{
+    const curCase=((batch.caseResults||[]).slice(-1)[0]||{}).name||"";
+    inner=`<div class="flex flex-wrap items-center gap-2">
+      ${st==="running"?`<i class="fa fa-spinner fa-spin text-sky-500"></i>`:`<i class="fa fa-hourglass-half text-slate-400"></i>`}
+      <span class="font-semibold ${st==="running"?"text-sky-700":"text-slate-500"}">${st==="running"?"正在执行":"排队等待执行"} · ${idx}/${tot}</span>
+      <div class="w-40 h-1.5 rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-sky-500 transition-all" style="width:${pct}%"></div></div>
+      ${curCase?`<span class="text-slate-400 truncate max-w-[240px]">当前：${esc(curCase)}</span>`:""}
+      <span class="ml-auto mono text-slate-400">${esc(batch.id)}</span>
+    </div>`;
+    inner+=`<div class="text-slate-400 mt-0.5">每完成一例即持久化，可随时刷新查看；单例 ERROR 不中断批次。</div>`;
+  }
+  p.innerHTML=inner;
+}
+function detHTML(r,sc){
+  const parts=[];
+  if(r.note)parts.push(`<div class="text-rose-500 mb-1"><i class="fa fa-info-circle"></i> ${esc(r.note)}</div>`);
+  const reason=(sc&&sc.reason)||"";
+  if(reason&&r.status!=="PASS")parts.push(`<div class="${r.status==="ERROR"?"text-slate-500":"text-slate-700"} mb-1">${esc(reason)}</div>`);
+  if(sc){
+    if((sc.evidence||[]).length)parts.push(`<ul class="my-1 space-y-0.5">${sc.evidence.map(e=>`<li class="flex gap-1.5 text-slate-500"><i class="fa fa-angle-right text-slate-300 mt-0.5"></i>${esc(e)}</li>`).join("")}</ul>`);
+    const chips=[];
+    if((sc.keywordHits||[]).length)chips.push(`<span class="text-emerald-600">命中：${sc.keywordHits.map(esc).join("、")}</span>`);
+    if((sc.keywordMisses||[]).length)chips.push(`<span class="text-rose-500">缺失：${sc.keywordMisses.map(esc).join("、")}</span>`);
+    if((sc.forbiddenHits||[]).length)chips.push(`<span class="text-rose-500">禁词：${sc.forbiddenHits.map(esc).join("、")}</span>`);
+    if(sc.mentionedPrice&&sc.mentionedPrice.length)chips.push(`<span class="text-sky-600">回复含价：${sc.mentionedPrice.map(v=>"¥"+v).join("、")}</span>`);
+    if(sc.expectedPrice&&sc.expectedPrice.amount!=null)chips.push(`<span class="text-sky-600">期望：¥${sc.expectedPrice.amount}±${sc.expectedPrice.tolerance||0.5}</span>`);
+    if(chips.length)parts.push(`<div class="flex flex-wrap gap-x-2 gap-y-0.5 my-1 text-[11px]">${chips.join("")}</div>`);
+    const bad=(sc.capabilityHits||[]).filter(h=>!h.ok);
+    if(bad.length)parts.push(`<div class="flex flex-wrap gap-1 my-1">${bad.map(h=>`<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 text-[11px]">${h.kind==="required"?"必需能力未执行":"禁用能力被真实执行"}：${esc(h.capability)}</span>`).join("")}</div>`);
+    const capok=(sc.capabilityHits||[]).filter(h=>h.ok&&h.kind==="required");
+    if(capok.length)parts.push(`<div class="flex flex-wrap gap-1 my-1">${capok.map(h=>`<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[11px]">执行 ${esc(h.capability)}</span>`).join("")}</div>`);
+    (sc.riskIssues||[]).forEach(ri=>parts.push(`<div class="text-[11px] ${ri.severity==="fail"?"text-rose-500":ri.severity==="review"?"text-amber-600":"text-slate-400"}"><i class="fa ${ri.severity==="fail"?"fa-times-circle":ri.severity==="review"?"fa-question-circle":"fa-info-circle"} mr-1"></i>${esc(ri.detail)}</div>`));
+  }
+  return parts.join("");
+}
+function renderBatchReport(batch){
+  $("#batchEmpty").classList.add("hidden");
+  const rows=batch.caseResults||[];
+  const tb=$("#batchBody");
+  if(!rows.length){tb.innerHTML="";return;}
+  tb.innerHTML=rows.map(r=>{
+    const sc=r.score||{};
+    const det=detHTML(r,sc);
+    const reply=r.replyText||"";
+    const replyCell=r.attempted===false
+      ?`<div class="text-slate-400 text-[11px]">未执行（attempted=false）</div>`
+      :reply
+        ?`<div class="max-h-44 overflow-auto rounded-lg bg-slate-50 border border-slate-200 p-2 text-[12px] whitespace-pre-wrap text-slate-700">${esc(reply)}</div>`
+        :`<div class="text-rose-500 text-[11px]">运行未产出回复文本${r.status==="ERROR"?"（ERROR）":""}</div>`;
+    return `<tr class="border-t border-slate-50 align-top">
+      <td class="px-3 py-2"><div class="flex flex-col gap-1 items-start">${stChip(r.status)}<span class="text-[10px] text-slate-400 mono">${esc(r.caseId)}</span></div></td>
+      <td class="px-2 py-2"><div class="text-xs font-medium text-slate-800">${esc(r.name||"")}</div><div class="text-[11px] text-slate-500 mt-0.5 max-w-[220px]">${esc(r.question||"")}</div></td>
+      <td class="px-2 py-2">${replyCell}</td>
+      <td class="px-2 py-2 text-xs text-slate-600 max-w-[360px]">${det||'<span class="text-slate-300">—</span>'}</td>
+      <td class="px-2 py-2 text-[11px] text-slate-400 mono">${msFmt(r.durationMs)}</td>
+      <td class="px-2 py-2"><div class="flex flex-col gap-1">
+        ${r.runId?`<a href="/runs/${esc(r.runId)}" target="_blank" class="text-[10px] text-sky-600 underline mono">run:${esc(r.runId)}</a>`:'<span class="text-[10px] text-slate-300">无 run</span>'}
+        ${r.runId?`<button data-run="${esc(r.runId)}" data-case="${esc(r.caseId)}" data-name="${esc(r.name||"")}" onclick="expandTrace(this)" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]">展开 Trace</button>`:""}
+      </div></td>
+    </tr>`;
+  }).join("");
+}
+async function expandTrace(btn){
+  const runId=btn.dataset.run,caseId=btn.dataset.case,name=btn.dataset.name||caseId;
+  try{
+    const d=await api("/api/runs/"+runId);
+    const run=d.run||{};const score=(run.eval||{})||{};
+    const c={id:caseId,name};
+    if(score&&score.status){renderRunResult({run,score},c);return;}
+  }catch(e){/* fallthrough */}
+  const c=STATE.cases.find(x=>x.id===caseId);if(c)openRun(c,{});else toast("未找到该用例，无法重跑",false);
+}
+
+// ----------------------------------------------------------------- 批次库 + 版本对比
+async function loadBatchLib(quiet){
+  try{
+    const j=await api("/api/eval/batch");
+    B.lib=j.batches||[];B.active=j.activeBatchId||null;B.last=j.lastCaseIds||[];
+    setJudgeBadge(j.evaluator);
+    if(B.pick==null){B.pick=(B.last&&B.last.length)?[...B.last]:enabledIds();renderPick();}
+    renderLibList();
+    rebuildCompareSelects();
+    refreshBtButtons();
+  }catch(e){if(!quiet)toast("批次库加载失败："+e.message,false);}
+}
+function fmtWhen(iso){return iso?String(iso).replace("T"," ").slice(5,16):"-";}
+function renderLibList(){
+  const box=$("#btLibBody");
+  $("#libMeta").textContent=`共 ${B.lib.length} 批 · 同一评分器快照互可比`;
+  if(!B.lib.length){box.innerHTML=`<div class="p-8 text-center text-slate-400 text-sm">暂无评测批次 —— 在上方创建第一个批次。</div>`;return;}
+  box.innerHTML=`<table class="w-full text-sm"><tbody>${B.lib.map(b=>{
+    const statusChip=B.active===b.id&&["queued","running"].indexOf(b.status)>=0?bstChip(b.status):bstChip(b.status);
+    const rate=(()=>{const d=b.passed+b.failed+b.review;return d?Math.round(100*b.passed/d)+"%":"-";})();
+    const dur=b.finishedAt&&b.createdAt?Math.round((new Date(b.finishedAt)-new Date(b.createdAt))/1000):null;
+    return `<tr class="border-t border-slate-50 align-top hover:bg-orange-50/30">
+      <td class="px-3 py-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-xs font-semibold text-slate-800">${esc(b.versionLabel?b.versionLabel+" · ":"")}${esc(b.name)}</span>${statusChip}
+          ${b.cur?`<i class="fa fa-eye text-slate-300"></i>`:""}
+        </div>
+        <div class="mono text-[10px] text-slate-400 mt-0.5">${esc(b.id)} · ${fmtWhen(b.createdAt)}${dur!=null?" · 耗时 "+dur+"s":""}</div>
+        ${b.changeNote?`<div class="text-[10px] text-slate-400 mt-0.5 truncate max-w-[420px]">${esc(b.changeNote)}</div>`:""}
+      </td>
+      <td class="px-2 py-2 text-[11px] whitespace-nowrap">
+        <div class="flex gap-1">${stChip("PASS").replace("PASS",b.passed+" PASS")}${stChip("FAIL").replace("FAIL",b.failed+" FAIL")}${stChip("REVIEW").replace("REVIEW",b.review+" REV")}${stChip("ERROR").replace("ERROR",b.errors+" ERR")}</div>
+        <div class="text-slate-500 mt-0.5">含ERROR通过率 ${rate}（分母不含ERROR）</div>
+      </td>
+      <td class="px-2 py-2 text-right whitespace-nowrap">
+        <div class="flex gap-1 justify-end">
+          <button onclick="viewBatch('${esc(b.id)}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px]"><i class="fa fa-eye"></i> 查看</button>
+          <button onclick="setCmp('cmpA','${esc(b.id)}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-orange-100 text-[11px]" title="作为对比基准(A)">A</button>
+          <button onclick="setCmp('cmpB','${esc(b.id)}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-orange-100 text-[11px]" title="作为对比当前(B)">B</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("")}</tbody></table>`;
+}
+async function viewBatch(bid){
+  try{
+    const j=await api("/api/eval/batch/"+bid);
+    B.cur=bid;B.running=false;clearInterval(B.timer);B.timer=null;
+    renderProgress(j.batch);renderBatchReport(j.batch);
+    const el=$("#evalBatchCard");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(e){toast(e.message,false);}
+}
+function rebuildCompareSelects(){
+  ["cmpA","cmpB"].forEach(id=>{
+    const sel=$("#"+id),cur=sel.value;
+    sel.innerHTML=B.lib.map((b,i)=>`<option value="${esc(b.id)}">${esc((b.versionLabel||("v"+(B.lib.length-i)))+" · "+b.name)} · ${b.passed+b.failed+b.review+b.errors}/${b.total} ${b.status}</option>`).join("");
+    if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+  });
+}
+function setCmp(slot,id){$("#"+slot).value=id;renderCompare();}
+function swapCompare(){const a=$("#cmpA").value;$("#cmpA").value=$("#cmpB").value;$("#cmpB").value=a;renderCompare();}
+async function renderCompare(){
+  const a=$("#cmpA").value,b=$("#cmpB").value,body=$("#cmpBody");
+  if(!a||!b){body.innerHTML=`<p class="text-slate-400">在上方选两个批次开始对比。</p>`;return;}
+  body.innerHTML=`<p class="text-slate-400"><i class="fa fa-spinner fa-spin"></i> 正在对比…</p>`;
+  try{
+    const j=await api(`/api/eval/batch/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+    drawCompare(j);
+  }catch(e){body.innerHTML=`<div class="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">${esc(e.message)}</div>`;}
+}
+function statMini(s,label){
+  const den=s.passed+s.failed+s.review;
+  const rate=s.passRate!=null?s.passRate+"%":"-";
+  return `<div class="flex-1 min-w-[120px] p-2.5 rounded-xl border ${label==="base"?"border-orange-100 bg-orange-50/40":"border-slate-200 bg-white"}">
+    <div class="text-[10px] uppercase tracking-wide text-slate-400 mb-1">${label==="base"?"基准 base（较早）":"当前 cur（较晚）"}</div>
+    <div class="font-bold text-slate-800 text-sm">${esc(s.versionLabel?s.versionLabel+" · ":"")}${esc(s.name)}</div>
+    <div class="mt-1 flex flex-wrap gap-1">${stChip("PASS").replace("PASS",s.passed+" PASS")}${stChip("FAIL").replace("FAIL",s.failed+" FAIL")}${stChip("REVIEW").replace("REVIEW",s.review+" REV")}${stChip("ERROR").replace("ERROR",s.errors+" ERR")}</div>
+    <div class="text-[11px] text-slate-500 mt-1">共 ${s.total} 例 · 通过率(不含ERROR) ${rate} · 平均 ${msFmt(s.avgDurationMs)}</div>
+    <div class="text-[10px] text-slate-400 mono mt-0.5">${esc(s.id)}</div>
+  </div>`;
+}
+function drawCompare(j){
+  const body=$("#cmpBody");let h="";
+  const verdict=j.verdict||"",ok=j.comparable;
+  if(!ok){
+    h+=`<div class="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 mb-2">
+      <b><i class="fa fa-ban mr-1"></i>两批不可直接比较</b> —— 差异如下（不给出“版本更好”结论）：
+      <ul class="list-disc pl-4 mt-1 text-[11px] space-y-0.5">${(j.blocks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  }else{
+    h+=`<div class="p-2.5 rounded-lg ${j.counts.regressed?"bg-rose-50 border border-rose-200 text-rose-700":"bg-emerald-50 border border-emerald-200 text-emerald-700"} mb-2">
+      <b><i class="fa ${j.counts.regressed?"fa-exclamation-triangle":"fa-check-circle"} mr-1"></i>${esc(verdict)}</b>
+      <span class="block text-[11px] mt-0.5">同用例集 + 同内容快照 + 同评分器，可对比 → 已修复 ${j.counts.fixed} · 新增失败 ${j.counts.regressed} · 状态变化 ${j.counts.statusChanged} · 回复变化 ${j.counts.replyChanged}</span>
+    </div>`;
+  }
+  // 双批统计
+  h+=`<div class="flex gap-2 flex-wrap mb-2">${statMini(j.base,"base")}${statMini(j.cur,"cur")}</div>`;
+  // harness 一致性
+  const s=j.sameHarness||{};
+  const same=(v,t)=>(v?`<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">${t}一致</span>`:`<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-500">${t}不同</span>`);
+  h+=`<div class="flex flex-wrap gap-1 mb-1 text-[10px]">${same(s.caseIds,"caseIds")}${same(s.snapshot,"内容快照")}${same(s.evaluator,"评分器")}${same(s.runtime,"Provider/模型/参数")}</div>`;
+  const ctx=(j.context||{});
+  if((ctx.skillDiff||[]).length||(ctx.toolDiff||[]).length){
+    h+=`<details class="my-1.5"><summary class="cursor-pointer text-[11px] text-slate-500"><i class="fa fa-cog mr-1"></i>Skills / Tools 差异（对比对象，不阻断可比性）</summary>
+      <ul class="pl-4 mt-1 space-y-0.5 text-[11px] text-slate-500">${[...(ctx.skillDiff||[]).map(x=>"Skill · "+x),...(ctx.toolDiff||[]).map(x=>"Tool · "+x)].map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`;
+  }
+  // deltas
+  const ds=j.deltas||[];
+  if(!ds.length){h+=`<div class="text-slate-400">无逐例对比（批次可能为空）。</div>`;body.innerHTML=h;return;}
+  h+=`<table class="w-full text-[11px] mt-1"><tbody>${ds.map(d=>{
+    const flips=[];
+    if(d.fixed)flips.push(`<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">已修复</span>`);
+    if(d.regressed)flips.push(`<span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold">新增失败</span>`);
+    if(d.statusChanged&&!d.fixed&&!d.regressed)flips.push(`<span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">状态变化</span>`);
+    if(d.replyChanged)flips.push(`<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">回复变化</span>`);
+    const change=d.statusChanged||d.replyChanged;
+    return `<tr class="border-t border-slate-100 align-top ${change?"bg-orange-50/30":""}">
+      <td class="py-1.5 pr-2">
+        <div class="font-semibold text-slate-700">${esc(d.name)}</div>
+        <div class="mono text-[10px] text-slate-400">${esc(d.caseId)}</div>
+        <div class="text-slate-400 max-w-[180px] truncate" title="${esc(d.question||"")}">${esc(d.question||"")}</div>
+      </td>
+      <td class="py-1.5 pr-2"><div class="flex flex-col gap-0.5 items-start">
+        <div class="flex items-center gap-1">${stChip(d.prevStatus)}<i class="fa fa-long-arrow-right text-slate-300"></i>${stChip(d.curStatus)}</div>
+        <div class="flex flex-wrap gap-0.5">${flips.join("")}</div>
+        <div class="text-slate-400">耗时 ${msFmt(d.durPrev)}→${msFmt(d.durCur)}</div>
+      </div></td>
+      <td class="py-1.5">
+        ${d.curRunId?`<a href="/runs/${esc(d.curRunId)}" target="_blank" class="text-sky-600 underline mono text-[10px]">run:${esc(d.curRunId)}</a>`:`<span class="text-slate-300 text-[10px]">无 run</span>`}
+        ${(change||d.prevRunId&&d.curRunId)?`<details class="mt-1"><summary class="cursor-pointer text-[10px] text-slate-400"><i class="fa fa-comment-o"></i> 回复对比</summary>
+          <div class="mt-1 space-y-1">${d.prevReply?`<div class="rounded bg-slate-100 p-1.5"><span class="text-slate-400">base：</span><span class="text-slate-500">${esc(d.prevReply)}</span></div>`:""}${d.curReply?`<div class="rounded bg-white border border-slate-200 p-1.5"><span class="text-emerald-600">cur：</span><span>${esc(d.curReply)}</span></div>`:""}</div></details>`:""}
+      </td>
+    </tr>`;
+  }).join("")}</tbody></table>`;
+  body.innerHTML=h;
+}
+
+// ----------------------------------------------------------------- init
+(async function init(){
+  try{
+    await refresh();
+  }catch(e){
+    toast("加载失败："+e.message,false);
+  }
+  try{
+    await loadBatchLib();
+  }catch(e){
+    toast("批次库加载失败："+e.message,false);
+  }
+})();
+</script>
+</body>
+</html>

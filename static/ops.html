@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>运营中心 · 运行监控 / 服务评分 / 数据标注 / 改进建议</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .card{background:#fff;border:1px solid #eef0f3;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#64748b;font-weight:600;text-align:left}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+<header class="bg-white/85 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center gap-3 flex-wrap">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-white grid place-items-center shadow shrink-0"><i class="fa fa-line-chart"></i></div>
+    <div class="leading-tight mr-auto">
+      <h1 class="font-bold">零食电商客服 · 运营中心</h1>
+      <p class="text-[11px] text-slate-500">运行结果发现问题 → 标注问题 → 沉淀评测/改进 → 追踪处理 · 聚类/草稿为规则法，从不伪装成 LLM 分析</p>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">演示</a>
+      <a href="/console" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">总控台</a>
+      <a href="/ops" class="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium">运营</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-[1400px] mx-auto px-4 py-4">
+  <nav id="tabs" class="flex flex-wrap gap-1 mb-4 text-sm" role="tablist"></nav>
+
+  <div id="toast" class="hidden fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg"></div>
+
+  <!-- 运行监控 -->
+  <section id="sec-metrics" class="hidden"></section>
+  <!-- 服务评分 -->
+  <section id="sec-ratings" class="hidden"></section>
+  <!-- 数据标注 -->
+  <section id="sec-annotations" class="hidden"></section>
+  <!-- 改进建议中心 -->
+  <section id="sec-improvements" class="hidden"></section>
+  <!-- 其他运营能力 -->
+  <section id="sec-more" class="hidden"></section>
+</div>
+
+<div id="modal" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-auto shadow-xl">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-2">
+      <h3 id="modalTitle" class="font-bold text-sm flex-1"></h3>
+      <button type="button" title="关闭" aria-label="关闭" onclick="closeModal()" class="w-7 h-7 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="modalBody" class="p-5"></div>
+  </div>
+</div>
+
+<script>
+// ----------------------------------------------------------------- helpers
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function toast(msg,ok=true){const t=$("#toast");t.textContent=msg;t.className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg "+(ok?"bg-emerald-600":"bg-rose-600");t.classList.remove("hidden");clearTimeout(toast._tm);toast._tm=setTimeout(()=>t.classList.add("hidden"),2600);}
+function openModal(title,html){$("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#modal").classList.remove("hidden");}
+function closeModal(){$("#modal").classList.add("hidden");}
+function openRun(rid){window.open("/runs/"+rid,"_blank");}
+async function api(path,opts){const r=await fetch(path,opts);const j=await r.json().catch(()=>({ok:false,error:"响应解析失败"}));if(!j||j.ok===false)throw new Error((j&&j.error)||("请求失败 "+path));return j;}
+async function post(path,body){return api(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});}
+function statusChip(st){
+  const map={ok:["bg-emerald-100 text-emerald-700","正常"],error:["bg-rose-100 text-rose-700","出错"],degraded:["bg-amber-100 text-amber-700","受限"],handoff:["bg-sky-100 text-sky-700","转人工"],running:["bg-slate-200 text-slate-600","运行中"],retry:["bg-violet-100 text-violet-700","重试"],applied:["bg-emerald-100 text-emerald-700","已应用"],open:["bg-sky-100 text-sky-700","进行中"],rejected:["bg-slate-200 text-slate-600","已搁置"],resolved:["bg-slate-200 text-slate-600","已解决"]};
+  const m=map[st]||["bg-slate-200 text-slate-600",st||"?"];
+  return `<span class="text-[11px] px-1.5 py-0.5 rounded-full ${m[0]}">${m[1]}</span>`;
+}
+function badge(i){return `<span class="text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500">${i}</span>`;}
+function errBox(sec,msg){sec.querySelector(".errbox").innerHTML=`<div class="text-rose-600 text-xs flex items-center gap-1.5"><i class="fa fa-exclamation-triangle"></i>${esc(msg||"请求失败")}</div>`;}
+function secError(msg){return `<div class="errbox"><div class="text-rose-600 text-xs flex items-center gap-1.5"><i class="fa fa-exclamation-triangle"></i>${esc(msg||"请求失败")}</div></div>`;}
+function dateRow(iso){return `<span class="mono text-[11px] text-slate-400">${esc((iso||"").replace("T"," ").slice(0,16))}</span>`;}
+
+// 运行记录选择器缓存（供评分/标注绑定）
+let runCache=[];
+async function loadRuns(){if(runCache.length)return runCache;const j=await api("/api/runs?limit=60");runCache=j.runs||[];return runCache;}
+function runOptions(){const sel=document.createElement("select");sel.className="opt";return sel;}
+function fillRunSelect(el,selVal){el.innerHTML='<option value="">— 直接填 question，不绑定运行 —</option>'+runCache.map(r=>`<option value="${esc(r.id)}" ${r.id===selVal?"selected":""}>${statusChipVal(r.status)} [${esc(r.id)}] ${esc(String(r.question||"").slice(0,36))}</option>`).join("");}
+function statusChipVal(st){const map={ok:"正常",error:"出错",degraded:"受限",handoff:"转人工",running:"运行中"};return map[st]||st;}
+
+// ----------------------------------------------------------------- tabs
+const TABS=[
+  {key:"metrics",label:"运行监控",icon:"fa-tachometer"},
+  {key:"ratings",label:"服务评分",icon:"fa-star-half-o"},
+  {key:"annotations",label:"数据标注",icon:"fa-tags"},
+  {key:"improvements",label:"改进建议中心",icon:"fa-lightbulb-o"},
+  {key:"more",label:"其他运营能力",icon:"fa-cubes"},
+];
+const tabbar=$("#tabs");
+TABS.forEach(t=>{const b=document.createElement("button");b.type="button";b.id="tab-"+t.key;b.role="tab";b.innerHTML=`<i class="fa ${t.icon} mr-1.5"></i>${t.label}`;b.className="px-3.5 py-2 rounded-xl inline-flex items-center text-sm font-medium transition-colors text-slate-600 hover:bg-white";b.onclick=()=>selectTab(t.key);tabbar.appendChild(b);});
+let active="metrics";
+function selectTab(k){active=k;TABS.forEach(t=>{const on=t.key===k;const b=$("#tab-"+t.key);b.className="px-3.5 py-2 rounded-xl inline-flex items-center text-sm font-medium transition-colors "+(on?"bg-orange-500 text-white shadow":"text-slate-600 hover:bg-white");b.setAttribute("aria-selected",on);$("#sec-"+t.key).classList.toggle("hidden",!on);});if(k==="metrics")mountMetrics();if(k==="ratings")mountRatings();if(k==="annotations")mountAnnotations();if(k==="improvements")mountImprovements();if(k==="more")mountMore();if(location.hash!=="#"+k){try{history.replaceState(null,"","#"+k);}catch(e){}}}
+(async function init(){const h=(location.hash||"").replace("#","");if(TABS.some(t=>t.key===h))active=h;selectTab(active);})();
+
+// ================================================================= 运行监控
+function mountMetrics(){
+  const sec=$("#sec-metrics");
+  sec.innerHTML='<div class="errbox"></div><div class="text-slate-400 text-sm py-10 text-center"><i class="fa fa-spinner fa-spin"></i> 汇总运行数据…</div>';
+  api("/api/ops/overview").then(ov=>{
+    const m=ov.metrics||{}, bs=m.byStatus||{}, rb=ov.riskByType||[], cl=ov.clusters||[], recent=ov.recentRuns||[];
+    const card=(label,val,sub,c)=>`<div class="card p-4 min-w-[150px]"><div class="text-[11px] text-slate-500">${label}</div><div class="text-2xl font-bold ${c||"text-slate-800"}">${val}</div><div class="text-[11px] text-slate-400 mt-0.5">${esc(sub||"")}</div></div>`;
+    let cardHtml=
+      card("运行总数",m.total,`正常 ${bs.ok||0} · 出错 ${bs.error||0} · 受限 ${bs.degraded||0}`)+
+      card("成功率",(m.finished?Math.round((m.successRate||0)*100)+"%":"-"),`转人工 ${bs.handoff||0}（${Math.round((m.handoffRate||0)*100)}%）`)+
+      card("平均耗时",(m.avgDurationMs!=null?m.avgDurationMs+" ms":"-"),"","text-slate-800")+
+      card("失败步骤",m.failedSteps||0,`拦截回复 ${m.blockedReplies||0}`)+
+      card("风险命中",m.riskRuns||0,"未执行销售/收款","text-orange-600")+
+      card("评分",m.ratings&&m.ratings.count?m.ratings.avg+" 分":(m.ratings?m.ratings.count:0)+" 条",`低分 ${(m.ratings&&m.ratings.low)||0}`,`${(m.ratings&&m.ratings.avg||0)>=4.2?"text-emerald-600":(m.ratings&&m.ratings.count?"text-amber-600":"")}`);
+    const riskHtml=rb.length?`<div class="flex flex-wrap gap-1.5 items-center">${rb.map(r=>`<span class="px-2 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs"><i class="fa fa-shield mr-1"></i>${esc(r.riskType)} × ${r.count}</span>`).join("")}</div>`:"<span class='text-xs text-slate-400'>暂无风险命中</span>";
+    let clHtml="";
+    if(cl.length){clHtml=`<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      ${cl.map(c=>{
+        const sev={high:"border-rose-300 bg-rose-50/60",mid:"border-amber-200 bg-amber-50/40",low:"border-slate-200 bg-slate-50"}[c.severity]||"border-slate-200";
+        return `<div class="card border ${sev} p-4">
+          <div class="flex items-center gap-2 flex-wrap"><h4 class="font-bold text-sm flex-1">${esc(c.title)} <span class="text-[10px] px-1.5 py-0.5 rounded bg-white/70 text-slate-500 border border-slate-200">${esc(c.method)} · ${c.count} 条</span></h4></div>
+          <p class="text-[11px] text-slate-500 mt-1 mb-2">${esc(c.hint||"")}</p>
+          ${(c.samples||[]).map(s=>`<div class="text-xs bg-white/80 border border-slate-100 rounded-lg px-2.5 py-1.5 mb-1 flex items-center gap-2 flex-wrap">
+            ${s.runId?`<a href="/runs/${esc(s.runId)}" target="_blank" class="mono text-orange-600 underline">#${esc(s.runId)}</a>`:""}
+            ${s.ratingId?`<span class="mono text-[10px] text-slate-400">评分 ${s.score} · ${esc(s.problemType||"")}</span>`:""}
+            <span class="text-slate-600 flex-1">${esc(s.question||"")}</span>${s.failed?`<span class="text-rose-500">${esc(s.failed)} 失败</span>`:""}${s.status?statusChip(s.status):""}</div>`).join("")}
+        </div>`;}).join("")}</div>`;}
+    const recentHtml=recent.length?`<div class="card overflow-hidden"><table class="w-full text-sm"><thead><tr class="border-b border-slate-100"><th class="px-4 py-2">运行</th><th class="px-3 py-2">问题</th><th class="px-3 py-2">状态</th><th class="px-3 py-2">耗时</th><th class="px-3 py-2">回复预览</th></tr></thead><tbody>${recent.map(r=>`<tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onclick="openRun('${r.id}')"><td class="px-4 py-1.5 mono text-[11px] text-orange-600">${r.id}</td><td class="px-3 py-1.5 max-w-[300px] truncate">${esc(r.question||"")}</td><td class="px-3 py-1.5">${statusChip(r.status)}</td><td class="px-3 py-1.5 text-xs">${r.durationMs!=null?r.durationMs+"ms":""}</td><td class="px-3 py-1.5 text-xs text-slate-500 max-w-[280px] truncate">${esc(r.replyPreview||(r.error?("err: "+r.error):""))}</td></tr>`).join("")}</tbody></table></div>`:"";
+    sec.innerHTML=`
+      ${secError(ov.error&&!ov.metrics?"overview 异常":"")}
+      <div class="flex flex-wrap gap-3 mb-4">${cardHtml}</div>
+      <div class="flex items-center gap-2 flex-wrap mb-4">
+        <span class="text-xs font-semibold text-slate-500">风险分布</span>${riskHtml}
+        <span class="ml-auto text-[11px] text-slate-400">改进 ${(m.improvements||0)} · 标注 ${(m.annotations||0)}</span>
+      </div>
+      <h3 class="text-sm font-bold mb-2 text-slate-600">问题聚类 <span class="text-[10px] text-slate-400 font-normal">规则聚类（非 LLM 分析）</span></h3>
+      ${clHtml}
+      <h3 class="text-sm font-bold mt-5 mb-2 text-slate-600">最近运行</h3>
+      ${recentHtml}`;
+    if(ov.error)sec.querySelector(".errbox").innerHTML=secError(ov.error);
+  }).catch(e=>{sec.innerHTML=secError(e.message);});
+}
+
+// ================================================================= 服务评分
+let ratingListKey=0;
+function mountRatings(){
+  const sec=$("#sec-ratings");
+  const el=document.createElement("div");
+  el.innerHTML=`<div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+    <div>
+      <div class="card p-4">
+        <h4 class="font-bold text-sm mb-3"><i class="fa fa-star-half-o text-amber-500 mr-1"></i>给一次运行打分</h4>
+        <label class="text-xs text-slate-500">运行记录</label><select id="rt_run" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm mb-2"></select>
+        <div class="flex items-end gap-2 mb-2"><div class="flex-1"><label class="text-xs text-slate-500">得分（1-5）</label>
+          <div id="rt_score" class="flex gap-0.5 text-xl cursor-pointer">${[1,2,3,4,5].map(n=>`<span data-v="${n}" class="star text-slate-300 hover:text-amber-400"><i class="fa fa-star"></i></span>`).join("")}</div></div>
+          <div class="flex-1"><label class="text-xs text-slate-500">问题类型</label><select id="rt_problem" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm">${["价格金额","内容准确性","完整性","语气态度","合规安全","其他"].map(p=>`<option>${p}</option>`).join("")}</select></div></div>
+        <label class="text-xs text-slate-500">备注（可选）</label><textarea id="rt_comment" rows="2" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm mb-2" placeholder="例如：价格叙述与明细不一致"></textarea>
+        <button id="rt_submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-2 text-sm font-medium">提交评分（低分自动进坏例）</button>
+        <div class="text-[11px] text-slate-400 mt-2">评分 ≤ 2 将自动沉淀为坏例候选，可在下方一键生成改进建议。</div>
+      </div>
+    </div>
+    <div>
+      <div class="card p-4">
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+          <h4 class="font-bold text-sm flex-1">评分记录</h4>
+          <input id="rt_onlybad" type="checkbox" class="accent-rose-500"><label for="rt_onlybad" class="text-xs text-slate-500">只看低分</label>
+          <button id="rt_refresh" class="px-2.5 py-1 rounded-lg border border-slate-200 text-xs hover:bg-slate-50"><i class="fa fa-refresh"></i> 刷新</button>
+        </div>
+        <div class="errbox"></div><div id="rt_list" class="text-slate-400 text-sm py-6 text-center">加载中…</div>
+      </div>
+    </div></div>`;
+  sec.replaceChildren(el);
+  loadRuns().then(()=>fillRunSelect($("#rt_run"))).catch(()=>{});
+  let chosen=3;
+  $$("#rt_score .star").forEach(s=>{s.onclick=()=>{chosen=+s.dataset.v;$$("#rt_score .star").forEach(x=>x.classList.toggle("text-amber-400",+x.dataset.v<=chosen));};});
+  $$("#rt_score .star").forEach(x=>x.classList.toggle("text-amber-400",+x.dataset.v<=chosen));
+  function refreshList(){
+    const bad=$("#rt_onlybad").checked?"&badcase=1":"";
+    api("/api/ratings?limit=100"+bad).then(j=>{
+      const rows=j.ratings||[];$("#rt_list").innerHTML=rows.length?`<div class="divide-y divide-slate-100">${rows.map(r=>`<div class="py-2.5">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-bold text-amber-600">${r.score} 分</span>${r.badcase?'<span class="text-[10px] px-1 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">坏例</span>':""}${badge(r.problemType||"未分类")}${dateRow(r.createdAt)}
+          <span class="ml-auto flex gap-1.5"><a href="/runs/${r.runId}" target="_blank" class="text-xs text-orange-500 underline ${r.runId?"":"hidden"}">Trace #${r.runId}</a>
+          <button data-id="${r.id}" class="toImp text-xs px-2 py-0.5 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100">沉淀为改进建议</button></span></div>
+        <div class="text-xs text-slate-600 mt-1">${esc(r.question||"")}</div>
+        ${r.comment?`<div class="text-xs text-slate-500 mt-0.5"><i class="fa fa-comment-o mr-1"></i>${esc(r.comment)}</div>`:""}
+        ${r.replyText?`<details class="mt-1"><summary class="text-[11px] text-slate-400 cursor-pointer">回复节选</summary><div class="text-[11px] text-slate-500 bg-slate-50 rounded-lg p-2 mt-1">${esc(String(r.replyText).slice(0,300))}</div></details>`:""}
+      </div>`).join("")}</div>`:`<div class="text-slate-400 text-sm py-8 text-center">暂无评分记录</div>`;
+      $$("#rt_list [data-id]").forEach(b=>b.onclick=()=>window._toImprovement("rating",b.dataset.id));
+    }).catch(e=>{$("#rt_list").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
+  }
+  window._toImprovement=async(kind,id)=>{
+    try{await post("/api/improvements",kind==="rating"?{fromRating:id}:{fromAnnotation:id});
+      toast("已生成改进建议，请到「改进建议中心」查看");
+      selectTab("improvements");
+    }catch(e){toast(e.message,false);}
+  };
+  $("#rt_submit").onclick=async()=>{
+    const runId=$("#rt_run").value||null;
+    const body={score:chosen,problemType:$("#rt_problem").value,comment:$("#rt_comment").value.trim(),author:"ops",runId};
+    try{const j=await post("/api/ratings",body);
+      toast(j.rating.badcase?"低分已自动沉淀为坏例候选":"已记录评分");
+      $("#rt_comment").value="";refreshList();
+    }catch(e){toast(e.message,false);}
+  };
+  $("#rt_refresh").onclick=refreshList;
+  $("#rt_onlybad").onchange=refreshList;
+  refreshList();
+}
+
+// ================================================================= 数据标注
+function mountAnnotations(){
+  const sec=$("#sec-annotations");
+  const el=document.createElement("div");
+  el.innerHTML=`<div class="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4">
+    <div class="card p-4">
+      <h4 class="font-bold text-sm mb-3"><i class="fa fa-tags text-sky-500 mr-1"></i>标注一次运行 / 回复</h4>
+      <label class="text-xs text-slate-500">运行记录</label><select id="an_run" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm mb-2"></select>
+      <label class="text-xs text-slate-500">问题/内容（未选运行时可手填）</label><textarea id="an_q" rows="1" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm mb-2" placeholder="选择运行后自动带出…"></textarea>
+      <label class="text-xs text-slate-500">标注维度（1-5）</label>
+      <div class="grid grid-cols-3 gap-2 mb-2">${["correctness","relevance","completeness","safety","tone","overall"].map(k=>`<div><label class="text-[11px] text-slate-500 block mb-0.5">${({correctness:"正确性",relevance:"相关性",completeness:"完整性",safety:"安全",tone:"语气",overall:"整体"})[k]}</label><input type="number" min="1" max="5" data-k="${k}" class="dims w-full border border-slate-200 rounded-lg px-2 py-1 text-sm"/></div>`).join("")}</div>
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div><label class="text-xs text-slate-500">状态</label><select id="an_status" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"><option value="pending">待定</option><option value="accepted">采纳</option><option value="rejected">驳回</option></select></div>
+        <div><label class="text-xs text-slate-500">标注人</label><input id="an_annotator" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm" value="ops"/></div></div>
+      <label class="text-xs text-slate-500">说明</label><textarea id="an_note" rows="2" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm mb-2" placeholder="标注说明/问题点"></textarea>
+      <button id="an_submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-lg py-2 text-sm font-medium">提交标注</button>
+    </div>
+    <div class="card p-4">
+      <div class="flex items-center gap-2 mb-3 flex-wrap">
+        <h4 class="font-bold text-sm flex-1">标注列表 <span class="text-[11px] text-slate-400 font-normal">（刷新后仍在 · 可导出评测数据）</span></h4>
+        <a href="/api/annotations/export?format=json" class="px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-600 text-xs bg-emerald-50 hover:bg-emerald-100"><i class="fa fa-download"></i> JSON</a>
+        <a href="/api/annotations/export?format=csv" class="px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-600 text-xs bg-emerald-50 hover:bg-emerald-100"><i class="fa fa-file-text-o"></i> CSV</a>
+        <select id="an_f" class="border border-slate-200 rounded-lg text-xs px-2 py-1"><option value="">全部状态</option><option value="pending">待定</option><option value="accepted">采纳</option><option value="rejected">驳回</option></select>
+      </div>
+      <div class="errbox"></div><div id="an_list" class="text-slate-400 text-sm py-6 text-center">加载中…</div>
+    </div></div>`;
+  sec.replaceChildren(el);
+  loadRuns().then(()=>{fillRunSelect($("#an_run"));$("#an_run").onchange=()=>{const rid=$("#an_run").value;const r=runCache.find(x=>x.id===rid);if(r)$("#an_q").value=r.question||"";else $("#an_q").value="";};}).catch(()=>{});
+  const dimName={correctness:"正确",relevance:"相关",completeness:"完整",safety:"安全",tone:"语气",overall:"整体"};
+  function dimDots(d){const x=d||{};return ["correctness","relevance","completeness","safety","tone","overall"].map(k=>x[k]==null?`<span class="mono text-[10px] text-slate-300" title="${dimName[k]}">-</span>`:`<span class="mono text-[10px] ${x[k]<=2?"text-rose-500":x[k]===5?"text-emerald-600":"text-slate-600"}" title="${dimName[k]}">${dimName[k]}${x[k]}</span>`).join(" · ");}
+  function setAnnoStatus(aid,st){api("/api/annotations/"+aid,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:st})}).then(()=>{toast("已置为 "+st);refreshList();}).catch(e=>toast(e.message,false));}
+  function refreshList(){
+    api("/api/annotations"+(($("#an_f").value)?"?status="+$("#an_f").value:"")).then(j=>{
+      const rows=j.annotations||[];
+      const dimName={correctness:"正确",relevance:"相关",completeness:"完整",safety:"安全",tone:"语气",overall:"整体"};
+      $("#an_list").innerHTML=rows.length?`<div class="divide-y divide-slate-100">${rows.map(a=>{const d=a.dimensions||{};
+        return `<div class="py-2.5" data-aid="${a.id}">
+          <div class="flex items-center gap-2 flex-wrap">${statusChip(a.status)} ${a.runId?`<a href="/runs/${a.runId}" target="_blank" class="mono text-[11px] text-orange-500 underline">#${a.runId}</a>`:""}${dateRow(a.createdAt)}<span class="text-xs text-slate-500 ml-auto">${esc(a.annotator||"")}</span></div>
+          <div class="text-[11px] text-slate-500 mt-1">${(["correctness","relevance","completeness","safety","tone","overall"].map(k=>d[k]==null?`<span class="mono text-slate-300">${dimName[k]}-</span>`:`<span class="mono ${d[k]<=2?"text-rose-500":d[k]>=5?"text-emerald-600":"text-slate-600"}">${dimName[k]}${d[k]}</span>`).join(" · "))}</div>
+          <div class="text-xs text-slate-600 mt-1">${esc(a.question||"")}</div>
+          ${a.note?`<div class="text-xs text-slate-500 mt-0.5"><i class="fa fa-comment-o mr-1"></i>${esc(a.note)}</div>`:""}
+          <div class="flex gap-1.5 mt-1.5">
+            ${a.status!=="accepted"?`<button data-st="accepted" class="stb text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">采纳</button>`:""}
+            ${a.status!=="rejected"?`<button data-st="rejected" class="stb text-[11px] px-2 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-200">驳回</button>`:""}
+            ${(d.overall==null||d.overall>2)?"":`<button data-id="${a.id}" class="toImp text-[11px] px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">进入改进建议</button>`}
+          </div></div>`;}).join("")}</div>`:`<div class="text-slate-400 text-sm py-8 text-center">暂无标注</div>`;
+      $$("#an_list .stb").forEach(b=>b.onclick=()=>setAnnoStatus(b.closest("[data-aid]").dataset.aid,b.dataset.st));
+      $$("#an_list .toImp").forEach(b=>b.onclick=()=>window._toImprovement?window._toImprovement("annotation",b.dataset.id):toImprovementA(b.dataset.id));
+    }).catch(e=>{$("#an_list").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
+  }
+  async function toImprovementA(id){try{await post("/api/improvements",{fromAnnotation:id});toast("已生成改进建议");selectTab("improvements");}catch(e){toast(e.message,false);}}
+  $("#an_submit").onclick=async()=>{
+    const runId=$("#an_run").value||null;
+    const dims={};$$("#an_list").length; /* noop guard */
+    document.querySelectorAll("#sec-annotations .dims").forEach(i=>{const v=i.value;dims[i.dataset.k]=v===""?null:+v;});
+    const q=runId?"":$("#an_q")?.value||""; /* question 仅手动场景 */
+    try{const j=await post("/api/annotations",{runId,question:q,dimensions:dims,status:$("#an_status").value,annotator:$("#an_annotator").value.trim(),note:$("#an_note").value.trim()});
+      toast("标注已保存（刷新后仍在）");$("#an_note").value="";$$("#sec-annotations .dims").forEach(i=>i.value="");refreshList();}
+    catch(e){toast(e.message,false);}
+  };
+  $("#an_f").onchange=refreshList;
+  refreshList();
+}
+
+// ================================================================= 改进建议中心
+let improveNeedsRefresh=null;
+function mountImprovements(){
+  const sec=$("#sec-improvements");
+  const el=document.createElement("div");
+  el.innerHTML=`<div class="card p-4 mb-4 text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+    <i class="fa fa-info-circle text-sky-400"></i>
+    改进闭环：低分评分/低分标注/失败运行自动形成样本 → 生成<button data-act="refresh" class="underline text-orange-500">建议</button> →
+    生成 <span class="text-slate-600">规则草稿</span>（绝不自动覆盖生产提示词）→ 人工确认 <b>应用</b>（自动留版本快照）→ 可随时回滚。标尺标签为规则法而非 LLM 分析。</div>
+    <div class="errbox"></div><div id="imp_list" class="grid grid-cols-1 xl:grid-cols-2 gap-3">加载中…</div>`;
+  sec.replaceChildren(el);
+  el.querySelector('[data-act=refresh]').onclick=()=>mountImprovements();
+  async function load(){
+    const j=await api("/api/improvements?limit=200");
+    const rows=j.improvements||[];
+    const box=$("#imp_list");
+    if(!rows.length){box.innerHTML='<div class="text-slate-400 text-sm py-10 text-center col-span-2">暂无改进建议。<br/>到「服务评分」给一次低分 → 点「沉淀为改进建议」，即可在这里生成草稿 / 应用 / 回滚。</div>';return;}
+    box.innerHTML=rows.map(imp=>{
+      const tg=(imp.targets||[]).map(t=>`${({skill:"Skill",tool:"Tool",planner:"Planner"})[t.type]||t.type}${t.id?"「"+esc(t.id)+"」":""}`).join("、");
+      const kinds={rating:"低分评分",annotation:"低分标注",manual:"人工",abtest:"A/B"};
+      const d=imp.draft||null, ap=imp.applied||null;
+      const canGen=imp.status!=="applied"&&imp.status!=="resolved";
+      const canRoll=ap&&ap.snapshotVid&&imp.status==="applied";
+      const ref=(imp.sourceRef||{});
+      return `<div class="card p-4 flex flex-col gap-2" data-id="${imp.id}">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-bold text-sm flex-1">${esc(imp.title||"改进建议")}</span>
+          ${statusChip(imp.status)}<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200">${kinds[imp.kind]||imp.kind}</span></div>
+        <div class="text-xs text-slate-500">目标：<b class="text-slate-700">${tg||"—"}</b>　方向：${esc(imp.directionText||"—")}</div>
+        ${(imp.sampleRuns||[]).length?`<div class="text-xs">样例运行：${imp.sampleRuns.map(s=>`<a href="/runs/${s.runId}" target="_blank" class="mono text-orange-500 underline mr-1">#${s.runId}</a>${esc(s.question||"")}`.replace(/(#.*?<\/a>)/,(m)=>m)).join("<br/>")}</div>`:""}
+        ${ref&&ref.type==="rating"?`<div class="text-[11px] text-amber-600">来源评分 ${ref.score} 分 · ${esc(ref.problemType||"")}</div>`:""}
+        ${d&&d.available
+          ?`<div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[11px]">
+            <div class="text-slate-400 mb-1"><i class="fa fa-file-text-o mr-1"></i>规则草稿已生成（${esc(d.generator||"")}）· 目标 ${esc((d.target&&d.target.label)||"")}</div>
+            <div class="flex gap-2 items-center"><button data-act="preview" class="text-[11px] px-2 py-1 rounded bg-white border border-slate-300 hover:bg-slate-100">预览 diff</button>
+            ${imp.status!=="applied"?`<button data-act="apply" class="text-[11px] px-2 py-1 rounded bg-emerald-500 text-white hover:bg-emerald-600" disabled>应用（需确认）</button><input type="checkbox" class="applychk accent-emerald-500 self-center" title="勾选表示已确认"/><label class="text-[10px] text-slate-400">已确认</label>`:""}</div></div>`
+          : canGen
+          ?`<div class="flex gap-1.5"><button data-act="gen" class="text-[11px] px-2.5 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100"><i class="fa fa-magic"></i> 生成提示词草稿</button></div>`
+          :""}
+        ${ap?`<div class="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg p-2">已应用 → 目标 ${esc(ap.label||"")} · 自动快照 <span class="mono">${esc(ap.snapshotVid||"—")}</span>（${esc(ap.at||"")}）</div>`:""}
+        <div class="flex gap-1.5 mt-auto flex-wrap text-[11px]">
+          ${canRoll?`<button data-act="rollback" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"><i class="fa fa-undo"></i> 回滚本次改进</button>`:""}
+          ${imp.status==="applied"||imp.status==="open"?`<button data-act="reject" class="px-2 py-1 rounded-lg bg-slate-50 text-slate-500 border border-slate-200">标记搁置</button>`:""}
+          <span class="text-[10px] text-slate-300 ml-auto">创建 ${(imp.createdAt||"").slice(0,16).replace("T"," ")}</span></div>
+      </div>`;}).join("");
+    $$("#imp_list [data-id]").forEach(card=>{
+      const id=card.dataset.id;
+      card.querySelector("[data-act=gen]")&&(card.querySelector("[data-act=gen]").onclick=async()=>{
+        try{await post("/api/improvements/generate-prompt",{improvementId:id});toast("草稿已生成（未写盘）");mountImprovements();}catch(e){toast(e.message,false);}});
+      card.querySelector("[data-act=preview]")&&(card.querySelector("[data-act=preview]").onclick=()=>previewDiff(id));
+      card.querySelector("[data-act=apply]")&&(card.querySelector("[data-act=apply]").onclick=async()=>{
+        const chk=card.querySelector(".applychk");
+        if(!chk||!chk.checked){toast("请先勾选「已确认」，草稿才会应用",false);return;}
+        try{const j=await post("/api/improvements/apply-prompt",{improvementId:id,confirm:true});toast(j.message||"已应用并留档快照");mountImprovements();}
+        catch(e){toast(e.message,false);}});
+      card.querySelector(".applychk")&&(card.querySelector(".applychk").onchange=()=>{card.querySelector("[data-act=apply]").disabled=!card.querySelector(".applychk").checked;});
+      card.querySelector("[data-act=rollback]")&&(card.querySelector("[data-act=rollback]").onclick=async()=>{
+        if(!confirm("确认回滚本次改进？会恢复应用前快照内容。"))return;
+        try{await post("/api/improvements/"+id+"/rollback",{});toast("已回滚到应用前快照");mountImprovements();}catch(e){toast(e.message,false);}});
+      card.querySelector("[data-act=reject]")&&(card.querySelector("[data-act=reject]").onclick=async()=>{try{await post("/api/improvements/"+id+"/status",{status:"rejected"});toast("已标记搁置");mountImprovements();}catch(e){toast(e.message,false);}});
+    });
+  }
+  improveNeedsRefresh=load;
+  load().catch(e=>{const box=$("#imp_list");box.innerHTML=`<div class="col-span-2 text-rose-600 text-xs">${esc(e.message)}</div>`;});
+}
+function previewDiff(id){
+  api("/api/improvements?limit=200").then(j=>{
+    const imp=(j.improvements||[]).find(i=>i.id===id);const d=imp&&imp.draft;
+    if(!d||!d.available){toast("无草稿可预览",false);return;}
+    const base=d.target.prompt||"", draft=d.text||"", tgt=d.target.label||"";
+    let added=draft;
+    if(draft.indexOf(base)===0){added=draft.slice(base.length);}else{added="（草稿不是单纯追加，见下框全文）";}
+    openModal("草稿预览 · "+tgt,`
+      <div class="text-xs mb-3 text-slate-500">改进方向：${esc(imp.directionText||"")}</div>
+      <div class="text-[11px] text-slate-400 mb-1">▲ 追加的新增内容（绿色，规则拼接）</div>
+      <pre class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-[11px] whitespace-pre-wrap mb-3 text-emerald-800">${esc(added)}</pre>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div><div class="text-[11px] text-slate-400 mb-1">当前生产提示词（只读，未被改动）</div>
+          <pre class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] whitespace-pre-wrap max-h-56 overflow-auto">${esc(base)}</pre></div>
+        <div><div class="text-[11px] text-emerald-500 mb-1">改进草稿（应用后才会写盘）</div>
+          <pre class="bg-white border border-emerald-200 rounded-lg p-3 text-[11px] whitespace-pre-wrap max-h-56 overflow-auto">${esc(draft)}</pre></div></div>
+      <p class="text-[11px] text-slate-400 mt-3"><i class="fa fa-lock text-amber-500"></i> 生成草稿不会自动覆盖生产提示词；需回到列表勾选「已确认」后点「应用」。</p>`);
+  }).catch(e=>toast(e.message,false));
+}
+
+// ================================================================= 其他运营能力
+function mountMore(){
+  const sec=$("#sec-more");
+  const el=document.createElement("div");
+  el.innerHTML=`<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-4">
+      <h4 class="font-bold text-sm mb-1"><i class="fa fa-user-md text-sky-500 mr-1"></i>人工评估</h4>
+      <p class="text-xs text-slate-500 mb-3">打开单条运行 Trace 人工复评；评分与标注见对应页签，标注可导出评测集。</p>
+      <div class="flex gap-2"><input id="mo_rid" class="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono" placeholder="输入 runId…"/><button id="mo_open" class="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm">打开 Trace</button></div>
+      <div class="text-[11px] text-slate-400 mt-2">最近运行列表见「运行监控」。</div>
+    </div>
+    <div class="card p-4">
+      <h4 class="font-bold text-sm mb-3"><i class="fa fa-history text-orange-500 mr-1"></i>Skill 版本快照 / 回滚</h4>
+      <div class="flex items-center gap-2 mb-2"><select id="mo_skill" class="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm"></select>
+        <button id="mo_snap" class="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">为当前内容建快照</button></div>
+      <div class="errbox"></div><div id="mo_ver" class="divide-y divide-slate-100">加载中…</div>
+      <p class="text-[11px] text-slate-400 mt-2"><i class="fa fa-info-circle"></i> 回滚将当前内容自动再留一档快照后恢复目标版本内容。</p>
+    </div>
+    <div class="card p-4">
+      <h4 class="font-bold text-sm mb-1"><i class="fa fa-flask text-violet-500 mr-1"></i>Prompt A/B 实验</h4>
+      <p class="text-xs text-slate-500 mb-3">登记实验：记录两个提示词变体，人工挑选生效方后落到对应 Skill 版本链路留痕。</p>
+      <details class="text-xs border border-slate-200 rounded-lg p-3"><summary class="cursor-pointer text-slate-600 font-medium">＋ 新建实验登记</summary>
+        <div class="mt-2 grid gap-2">
+          <input id="ab_name" class="border border-slate-200 rounded-lg px-2 py-1.5" placeholder="实验名，如：话术结构 A/B"/>
+          <div class="grid grid-cols-2 gap-2"><input id="ab_a_name" class="border border-slate-200 rounded-lg px-2 py-1.5" value="A"/><input id="ab_b_name" class="border border-slate-200 rounded-lg px-2 py-1.5" value="B"/></div>
+          <textarea id="ab_a" rows="3" class="border border-slate-200 rounded-lg px-2 py-1.5 mono text-[11px]" placeholder="变体 A prompt 摘录"></textarea>
+          <textarea id="ab_b" rows="3" class="border border-slate-200 rounded-lg px-2 py-1.5 mono text-[11px]" placeholder="变体 B prompt 摘录"></textarea>
+          <button id="ab_new" class="bg-violet-500 text-white rounded-lg py-1.5">保存实验登记</button></div></details>
+      <div id="ab_list" class="mt-3 text-xs">加载中…</div>
+    </div>
+    <div class="card p-4">
+      <h4 class="font-bold text-sm mb-1"><i class="fa fa-book text-emerald-500 mr-1"></i>改进 / 变更记录</h4>
+      <p class="text-xs text-slate-500 mb-2">每条改进的创建、生成草稿、应用、回滚都在「改进建议中心」卡片内留痕。</p>
+      <div class="errbox2"></div><div id="mo_hist" class="divide-y divide-slate-100 text-xs">加载中…</div>
+    </div>
+  </div>`;
+  sec.replaceChildren(el);
+  $("#mo_open").onclick=()=>{const v=$("#mo_rid").value.trim();if(v)openRun(v);else toast("先输入 runId",false);};
+  // skill versions
+  const skills=$("#mo_skill");
+  api("/api/skills").then(j=>{skills.innerHTML=(j.skills||[]).map(s=>`<option value="${s.id}">${esc(s.name)}（v${s.versions_count||0}）</option>`).join("");loadVersions();}).catch(e=>errBox(sec,e.message));
+  skills.onchange=loadVersions;
+  function loadVersions(){
+    const sid=skills.value;if(!sid)return;
+    $("#mo_ver").innerHTML='<div class="text-slate-400 py-4 text-center text-xs">加载版本…</div>';
+    api("/api/skills/"+sid+"/versions").then(j=>{
+      const vs=(j.versions||[]).slice().reverse();const cur=j.skill||{};
+      const curSig=esc(String(cur.prompt||"").slice(0,80));
+      $("#mo_ver").innerHTML=vs.length?vs.map(v=>{const snap=v.snapshot||{};return `<div class="py-2 flex items-center gap-2 flex-wrap">
+        <span class="mono text-[11px] text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">${esc(v.vid)}</span>
+        <span class="text-[11px] text-slate-400">${esc(v.at)} · ${esc(v.note||"")}</span>
+        <span class="flex-1 text-[11px] text-slate-500 truncate max-w-[200px]">${esc(String(snap.prompt||"").slice(0,60))}${curSig===esc(String(snap.prompt||"").slice(0,80))?"（当前）":""}</span>
+        <button data-vid="${v.vid}" class="restore text-[11px] px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">恢复</button></div>`;}).join(""):
+      `<div class="text-slate-400 py-3 text-center text-xs">该技能暂无快照</div>`;
+      $$("#mo_ver .restore").forEach(b=>b.onclick=()=>{if(!confirm("确认恢复为版本 "+b.dataset.vid+" 的内容？"))return;
+        post("/api/skills/"+sid+"/rollback",{vid:b.dataset.vid,actor:"ops",note:"运营中心回滚"}).then(()=>{toast("已恢复 "+b.dataset.vid+"（当前内容已自动留档）");loadVersions();}).catch(e=>toast(e.message,false));});
+    }).catch(e=>{$("#mo_ver").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
+  }
+  $("#mo_snap").onclick=()=>{const sid=skills.value;if(!sid)return;
+    post("/api/skills/"+sid+"/snapshot",{note:"运营中心手工快照",actor:"ops"}).then(j=>{toast("已创建 "+j.version.vid);loadVersions();}).catch(e=>toast(e.message,false));};
+  // ab（用字符串拼接避免多层模板嵌套解析歧义）
+  function abRow(a){
+    const statusTag=a.active?'<span class="text-[10px] px-1.5 rounded bg-emerald-100 text-emerald-600">生效：'+esc(a.activeVariant||"?")+'</span>':"";
+    let btns="";
+    ["A","B"].forEach(v=>{if(a.activeVariant===v)return;btns+='<button type="button" data-v="'+v+'" class="pick text-[11px] px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-50">选 '+v+' 为生效方</button>';});
+    if(a.active)btns+='<button type="button" data-off="1" class="off text-[11px] px-2 py-0.5 rounded border border-slate-200 text-slate-400">结束实验</button>';
+    return '<div class="py-2" data-ab="'+a.id+'">'
+      +'<div class="flex gap-2 items-center flex-wrap"><span class="font-semibold">'+esc(a.name)+'</span>'+statusTag+dateRow(a.createdAt)+'</div>'
+      +'<div class="text-[11px] text-slate-500 mt-0.5">'+esc((a.variantA&&a.variantA.name)||"A")+' vs '+esc((a.variantB&&a.variantB.name)||"B")+' · 目标 '+esc((a.target&&a.target.id)||"")+'</div>'
+      +'<div class="flex gap-1.5 mt-1">'+btns+'</div></div>';
+  }
+  function loadAb(){api("/api/ab-tests").then(j=>{
+    const t=j.tests||[];
+    $("#ab_list").innerHTML=t.length?'<div class="divide-y divide-slate-100">'+t.map(abRow).join("")+'</div>':'<div class="text-slate-400 py-2 text-center">暂无实验</div>';
+    $$("#ab_list .pick").forEach(b=>b.onclick=()=>{const id=b.closest("[data-ab]").dataset.ab;
+      api("/api/ab-tests/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({activeVariant:b.dataset.v})}).then(()=>{toast("已设 "+b.dataset.v+" 生效");loadAb();}).catch(e=>toast(e.message,false));});
+    $$("#ab_list .off").forEach(b=>b.onclick=()=>{const id=b.closest("[data-ab]").dataset.ab;
+      api("/api/ab-tests/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({active:false})}).then(()=>{toast("已结束实验");loadAb();}).catch(e=>toast(e.message,false));});
+  }).catch(e=>$("#ab_list").innerHTML='<div class="text-rose-600 text-xs">'+esc(e.message)+'</div>');}
+  $("#ab_new").onclick=async()=>{try{const j=await post("/api/ab-tests",{name:$("#ab_name").value.trim(),variantA:{name:$("#ab_a_name").value||"A",prompt:$("#ab_a").value},variantB:{name:$("#ab_b_name").value||"B",prompt:$("#ab_b").value},note:""});toast("已登记实验 "+j.test.id);$("#ab_name").value="";loadAb();}catch(e){toast(e.message,false);}};
+  // 变更留痕历史
+  api("/api/improvements?limit=100").then(j=>{
+    const rows=(j.improvements||[]).filter(i=>i.history&&i.history.length>1);
+    $("#mo_hist").innerHTML=rows.length?rows.slice(0,8).flatMap(i=>i.history.map(h=>`<div class="py-1.5 flex gap-2"><span class="mono text-[10px] text-slate-400 shrink-0">${(h.at||"").slice(5,16)}</span><span class="text-slate-600">${esc(i.title||"")}：${esc(h.what||"")}</span><span class="text-[11px] text-slate-400">${esc(h.note||"")}</span></div>`)).join(""):`<div class="text-slate-400 py-2 text-center">暂无变更记录</div>`;
+  }).catch(e=>{$("#mo_hist").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
+  // refresh ab list wiring re-binding issue handled by reload below
+  loadAb();
+}
+</script>
+</body>
+</html>

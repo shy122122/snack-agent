@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Skill 管理 · 零食电商客服后台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .fadein{animation:fadein .18s ease}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1}}
+  details.v>summary{list-style:none}
+  details.v>summary::-webkit-details-marker{display:none}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-indigo-500 text-white grid place-items-center shadow"><i class="fa fa-cubes text-lg"></i></div>
+    <div class="flex-1 min-w-0">
+      <h1 class="font-bold leading-tight">Skill 管理</h1>
+      <p class="text-xs text-slate-500 truncate">编辑会做版本快照 · 保存后前台即时生效（无需重启）</p>
+    </div>
+    <nav class="flex flex-wrap items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">演示</a>
+      <a href="/skills" class="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 font-medium">技能</a>
+      <a href="/tools" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工具</a>
+      <a href="/planner" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">规划器</a>
+      <a href="/models" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">模型</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-6xl mx-auto px-4 py-5">
+  <!-- 状态条 -->
+  <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <button id="refreshBtn" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50"><i class="fa fa-refresh"></i> 刷新</button>
+    <input id="search" type="search" placeholder="按名称 / id 过滤…"
+      class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 min-w-0 flex-1 max-w-xs"/>
+    <span class="text-slate-400">状态：</span>
+    <select id="stateFilter" title="启用状态筛选" aria-label="启用状态筛选" class="px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none">
+      <option value="all">全部</option><option value="on">仅启用</option><option value="off">仅停用</option>
+    </select>
+    <span id="countPill" class="px-2 py-1 rounded-full bg-slate-200 text-slate-600"></span>
+  </div>
+
+  <!-- 视图状态 -->
+  <div id="loadCard" class="hidden bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400"><i class="fa fa-circle-o-notch fa-spin"></i> 加载中…</div>
+  <div id="errCard" class="hidden bg-white rounded-2xl p-6 shadow-sm ring-2 ring-rose-200 text-sm text-rose-700 whitespace-pre-wrap"></div>
+  <div id="emptyCard" class="hidden bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400"><i class="fa fa-inbox"></i> 没有符合条件的 Skill</div>
+
+  <!-- 卡片列表 -->
+  <div id="list" class="grid lg:grid-cols-2 gap-4"></div>
+</div>
+
+<!-- ============ 编辑 / 查看弹层 ============ -->
+<div id="modalWrap" class="hidden fixed inset-0 z-50 bg-slate-900/40 overflow-auto p-3 md:p-6">
+  <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl fadein">
+    <div class="sticky top-0 bg-white rounded-t-2xl px-5 py-3 border-b border-slate-200 flex items-center gap-3 z-10">
+      <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 grid place-items-center"><i class="fa fa-pencil"></i></div>
+      <h2 class="font-semibold" id="modalTitle">编辑 Skill</h2>
+      <span class="text-xs text-slate-400 mono" id="modalId"></span>
+      <button aria-label="关闭" title="关闭" onclick="closeModal()" class="ml-auto w-8 h-8 rounded-lg hover:bg-slate-100"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="modalBody" class="px-5 py-4 space-y-3 text-sm"></div>
+  </div>
+</div>
+
+<!-- ============ 版本/历史弹层 ============ -->
+<div id="verWrap" class="hidden fixed inset-0 z-50 bg-slate-900/40 overflow-auto p-3 md:p-6">
+  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl fadein">
+    <div class="sticky top-0 bg-white rounded-t-2xl px-5 py-3 border-b border-slate-200 flex items-center gap-3 z-10">
+      <div class="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 grid place-items-center"><i class="fa fa-history"></i></div>
+      <h2 class="font-semibold">版本历史</h2><span class="text-xs text-slate-400 mono" id="verId"></span>
+      <button aria-label="关闭" title="关闭" onclick="closeVer()" class="ml-auto w-8 h-8 rounded-lg hover:bg-slate-100"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="verBody" class="px-5 py-4"></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(url,method,body){
+  const r=await fetch(url,{method:method||"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+  if(j&&j.ok===false) throw new Error(j.error||"操作失败");
+  return j;
+}
+let state=[], sel=null; // sel = 当前编辑对象副本
+function toast(msg,kind){
+  const d=document.createElement("div");
+  d.className="fixed bottom-4 right-4 z-[60] px-4 py-2 rounded-xl text-sm shadow-lg text-white fadein "+(kind==="err"?"bg-rose-600":(kind==="ok"?"bg-emerald-600":"bg-slate-700"));
+  d.innerHTML=esc(msg); document.body.appendChild(d); setTimeout(()=>d.remove(),kind==="err"?5000:2600);
+}
+function showState(){ // 统一 empty/error/loading/success 视图
+  const q=($("#search").value||"").trim().toLowerCase(), st=$("#stateFilter").value;
+  const rows=state.filter(s=>{
+    if(st==="on"&&!s.enabled)return false; if(st==="off"&&s.enabled)return false;
+    if(q&&!(s.id+s.name+s.description).toLowerCase().includes(q))return false;
+    return true;
+  });
+  $("#emptyCard").classList.toggle("hidden",rows.length!==0);
+  $("#countPill").textContent=rows.length+"/"+state.length+" 个";
+  renderRows(rows);
+}
+function renderRows(rows){
+  const box=$("#list"); box.innerHTML="";
+  for(const s of rows){
+    const mp=s.model_params||{};
+    const card=document.createElement("div");
+    card.className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm fadein min-w-0";
+    card.innerHTML=`
+      <div class="flex flex-wrap items-start gap-2">
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold flex flex-wrap items-center gap-2"><span class="truncate">${esc(s.name)}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 mono">${esc(s.id)}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded ${s.enabled?"bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-600"}">${s.enabled?"启用":"停用"}</span>
+          </h3>
+          <p class="text-xs text-slate-500 mt-1 break-words">${esc(s.description)}</p>
+        </div>
+        <label class="inline-flex items-center gap-1.5 text-xs text-slate-500 select-none shrink-0">
+          <input type="checkbox" class="accent-emerald-600" ${s.enabled?"checked":""} onchange="toggle('${esc(s.id)}',this.checked)"/>
+          ${s.enabled?"已启用":"已停用"}
+        </label>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-3 text-[11px] text-slate-500">
+        <span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100">模型 <b class="text-slate-700 mono">${esc(mp.model||"(默认)")}</b></span>
+        <span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100">温度 <b class="text-slate-700 mono">${mp.temperature??"-"}</b></span>
+        <span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100">max_tokens <b class="text-slate-700 mono">${mp.max_tokens??"-"}</b></span>
+        <span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100">依赖 Tool <b class="text-slate-700">${(s.dep_tools||[]).length?esc((s.dep_tools||[]).join("、" )):"无"}</b></span>
+        <button class="px-2 py-1 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100" onclick="openVers('${esc(s.id)}')"><i class="fa fa-history"></i> 版本 ${s.versions_count||0}</button>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-medium" onclick="openEdit('${esc(s.id)}')"><i class="fa fa-pencil"></i> 编辑</button>
+        <button class="px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 text-xs border border-slate-200" onclick="viewPrompt('${esc(s.id)}')"><i class="fa fa-eye"></i> 查看提示词</button>
+      </div>`;
+    box.appendChild(card);
+  }
+}
+async function load(){
+  showSpin(true);
+  try{
+    const j=await api("/api/skills"); state=j.skills; $("#errCard").classList.add("hidden"); showState();
+  }catch(e){ $("#errCard").textContent="加载失败："+e.message; $("#errCard").classList.remove("hidden"); $("#loadCard").classList.add("hidden"); }
+  finally{ showSpin(false); }
+}
+function showSpin(on){ $("#loadCard").classList.toggle("hidden",!on); }
+async function toggle(id,on){
+  try{ const j=await api("/api/skills/"+id,"PUT",{enabled:on}); upsert(j.skill); toast((on?"已启用 ":"已停用 ")+id+"，Planner 将立即生效。","ok"); }
+  catch(e){ toast("切换失败："+e.message,"err"); load(); }
+}
+function upsert(sk){ const i=state.findIndex(s=>s.id===sk.id); if(i>=0)state[i]=sk; else state.push(sk); showState(); }
+
+/* ---------- 编辑 ---------- */
+function openEdit(id, init){
+  const s=state.find(x=>x.id===id); if(!s)return;
+  // init 形如 {name,description,prompt,model_params,note}：来自历史快照回滚预填
+  const src=init||s;
+  sel=JSON.parse(JSON.stringify(src));
+  const mp=src.model_params||{};
+  sel=JSON.parse(JSON.stringify(s));
+  $("#modalTitle").textContent="编辑 Skill";
+  $("#modalId").textContent=id;
+  $("#modalBody").innerHTML=`
+    <label class="block"><span class="text-slate-500 text-xs">名称</span>
+      <input id="e_name" value="${esc(sel.name)}" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+    </label>
+    <label class="block"><span class="text-slate-500 text-xs">描述</span>
+      <textarea id="e_desc" rows="2" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none">${esc(sel.description||"")}</textarea>
+    </label>
+    <div class="grid grid-cols-3 gap-2">
+      <label class="block col-span-1"><span class="text-slate-500 text-xs">模型(留空=默认)</span>
+        <input id="e_model" value="${esc(mp.model||"")}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs mono focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+      </label>
+      <label class="block"><span class="text-slate-500 text-xs">温度</span>
+        <input id="e_temp" type="number" step="0.1" min="0" max="2" value="${mp.temperature??""}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+      </label>
+      <label class="block"><span class="text-slate-500 text-xs">max_tokens</span>
+        <input id="e_maxtok" type="number" step="50" min="64" value="${mp.max_tokens??""}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+      </label>
+    </div>
+    <label class="block"><span class="text-slate-500 text-xs">System Prompt（内容变化会自动归档旧版）</span>
+      <textarea id="e_prompt" rows="12" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300 leading-5">${esc(sel.prompt||"")}</textarea>
+    </label>
+    <div class="grid md:grid-cols-2 gap-2">
+      <label class="block"><span class="text-slate-500 text-xs">本次修改说明(change note)</span>
+        <input id="e_note" value="${esc((init&&init.note)||"")}" placeholder="例如：收窄禁止编造金额的表述" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+      </label>
+      <label class="block"><span class="text-slate-500 text-xs">操作者</span>
+        <input id="e_actor" value="admin" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+      </label>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 pt-1">
+      <button id="saveBtn" onclick="saveEdit('${esc(id)}')" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2 font-medium disabled:opacity-50"><i class="fa fa-save"></i><span>保存</span></button>
+      <button onclick="closeModal()" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">取消</button>
+      <span id="editMsg" class="text-xs"></span>
+    </div>`;
+  $("#modalWrap").classList.remove("hidden");
+}
+async function saveEdit(id){
+  const btn=$("#saveBtn"), msg=$("#editMsg");
+  btn.disabled=true; btn.querySelector("span").textContent="保存中…"; msg.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 正在写盘…';
+  const temp=parseFloat($("#e_temp").value), maxtok=parseInt($("#e_maxtok").value,10);
+  const model_params={model:($("#e_model").value||"").trim()||null};
+  if(!Number.isNaN(temp))model_params.temperature=temp;
+  if(!Number.isNaN(maxtok))model_params.max_tokens=maxtok;
+  try{
+    const j=await api("/api/skills/"+id,"PUT",{
+      name:$("#e_name").value.trim()||sel.name, description:$("#e_desc").value,
+      prompt:$("#e_prompt").value, model_params, note:$("#e_note").value, actor:$("#e_actor").value||"admin",
+    });
+    upsert(j.skill);
+    msg.innerHTML='<span class="text-emerald-600"><i class="fa fa-check-circle"></i> 已保存</span>';
+    toast(j.message||"已保存","ok");
+    setTimeout(closeModal,500);
+  }catch(e){
+    // 服务端保留旧值：此处不回写本地副本，保证界面不假装保存成功
+    msg.innerHTML='<span class="text-rose-600"><i class="fa fa-exclamation-triangle"></i> 保存失败，已保留服务端旧版本：'+esc(e.message)+'</span>';
+    toast("保存失败："+e.message,"err");
+    btn.disabled=false; btn.querySelector("span").textContent="保存";
+  }
+}
+function closeModal(){ $("#modalWrap").classList.add("hidden"); sel=null; }
+
+/* ---------- 查看提示词（只读） ---------- */
+function viewPrompt(id){
+  const s=state.find(x=>x.id===id); if(!s)return;
+  $("#modalTitle").textContent="查看 System Prompt";
+  $("#modalId").textContent=id;
+  $("#modalBody").innerHTML=`
+    <p class="text-xs text-slate-400">以下为该 Skill 执行时使用的系统提示词（只读）。如需修改请点「编辑」。</p>
+    <pre class="mt-2 bg-slate-900 text-slate-100 rounded-xl p-3 text-xs leading-5 whitespace-pre-wrap overflow-auto max-h-[60vh] mono">${esc(s.prompt||"(空)")}</pre>
+    <div class="flex justify-end mt-3"><button onclick="closeModal()" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50">关闭</button></div>`;
+  $("#modalWrap").classList.remove("hidden");
+}
+
+/* ---------- 版本历史 + diff + 回滚 ---------- */
+async function openVers(id){
+  $("#verId").textContent=id; $("#verBody").innerHTML='<div class="py-6 text-center text-slate-400"><i class="fa fa-circle-o-notch fa-spin"></i> 加载版本…</div>';
+  $("#verWrap").classList.remove("hidden");
+  try{
+    const j=await api("/api/skills/"+id+"/versions");
+    const cur=j.skill, vers=j.versions;
+    const mp=cur.model_params||{};
+    const curJson={name:cur.name,description:cur.description,prompt:cur.prompt,model_params:mp};
+    let html=`
+      <div class="text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
+        <span class="text-slate-500">当前版本（skills.json 实时内容）</span>
+        <div class="mt-1 flex flex-wrap gap-2 text-[11px]">模型 <b class="mono">${esc(mp.model||"(默认)")}</b> · 温度 <b class="mono">${mp.temperature??"-"}</b> · max_tokens <b class="mono">${mp.max_tokens??"-"}</b></div>
+      </div>`;
+    if(!vers.length){
+      html+=`<div class="text-center text-slate-400 py-8"><i class="fa fa-inbox"></i> 还没有版本快照 —— 首次编辑「prompt / 名称 / 描述 / 参数」并保存时，会自动把改动前的旧版归档到 v1。</div>`;
+    }else{
+      const list=vers.slice().reverse();
+      html+=`<div class="space-y-2">`;
+      for(const v of list){
+        const snap=v.snapshot||{};
+        const changed=[];
+        for(const k of ["name","description","prompt","model_params"]){
+          const o=JSON.stringify(curJson[k]), p=JSON.stringify(snap[k]);
+          if(o!==p) changed.push(k);
+        }
+        html+=`
+        <details class="v bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <summary class="cursor-pointer px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm hover:bg-slate-50">
+            <span class="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px] mono">${esc(v.vid)}</span>
+            <span class="text-slate-700 font-medium">${esc(v.note||"（无说明）")}</span>
+            <span class="text-[11px] text-slate-400">${esc(v.at||"")}${v.actor?(" · "+esc(v.actor)):""}</span>
+            <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded ${changed.length?"bg-amber-100 text-amber-700":"bg-slate-100 text-slate-400"}">${changed.length?"变更："+changed.join("/"):"与当前一致"}</span>
+          </summary>
+          <div class="px-4 pb-4 space-y-3">
+            <div class="grid md:grid-cols-2 gap-2">
+              <div>
+                <p class="text-[11px] text-slate-400 mb-1">该版本 Prompt（旧版）</p>
+                <pre class="mono bg-slate-900 text-slate-100 rounded-lg p-2.5 text-[11px] leading-5 whitespace-pre-wrap overflow-auto max-h-64">${esc(snap.prompt||"(空)")}</pre>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-400 mb-1">当前 Prompt（实时）</p>
+                <pre class="mono bg-slate-100 text-slate-700 rounded-lg p-2.5 text-[11px] leading-5 whitespace-pre-wrap overflow-auto max-h-64">${esc(curJson.prompt||"(空)")}</pre>
+              </div>
+            </div>
+            ${viewParamsTable(curJson, snap)}
+            <button class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs border border-amber-200" onclick="rollback('${esc(id)}','${esc(v.vid)}','${esc((v.note||"").replace(/'/g,""))}')">
+              <i class="fa fa-undo"></i> 以此版为基础填回编辑框（不破坏历史）
+            </button>
+          </div>
+        </details>`;
+      }
+      html+=`</div>`;
+    }
+    $("#verBody").innerHTML=html;
+  }catch(e){ $("#verBody").innerHTML=`<div class="text-rose-600 text-sm py-6 text-center">加载失败：${esc(e.message)}</div>`; }
+}
+function viewParamsTable(cur,snap){
+  const rows=["model","temperature","max_tokens"].map(k=>{
+    const a=JSON.stringify((cur.model_params||{})[k]), b=JSON.stringify((snap.model_params||{})[k]);
+    return `<tr><td class="px-2 py-1 text-slate-500">${k}</td><td class="px-2 py-1 mono ${a!==b?"text-amber-700":""}">${esc(a)}</td><td class="px-2 py-1 mono ${a!==b?"text-emerald-700":""}">${esc(b)}</td></tr>`;
+  }).join("");
+  return `<table class="w-full text-xs border border-slate-100 rounded-lg overflow-hidden"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-2 py-1 text-left">参数</th><th class="px-2 py-1 text-left">当前</th><th class="px-2 py-1 text-left">该版本</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function rollback(id,vid){
+  // 非破坏性回滚：把该历史版本的 prompt/参数/名称/描述填回编辑器，由用户确认后再保存成新版本（旧版仍在历史里）
+  closeVer();
+  try{
+    const j=await api("/api/skills/"+id+"/versions/"+vid);
+    const snap=j.version.snapshot||{};
+    openEdit(id,{name:snap.name,description:snap.description,prompt:snap.prompt,
+                 model_params:snap.model_params||{},note:"回滚至 "+vid+"（据此版内容重新编辑）"});
+    toast("已载入 "+vid+" 的内容，确认后点「保存」将产生新版本。","ok");
+  }catch(e){ toast("载入版本失败："+e.message,"err"); }
+}
+function closeVer(){ $("#verWrap").classList.add("hidden"); }
+
+$("#search").addEventListener("input",showState);
+$("#stateFilter").addEventListener("change",showState);
+$("#refreshBtn").addEventListener("click",load);
+load();
+</script>
+</body>
+</html>

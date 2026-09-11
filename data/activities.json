@@ -1,0 +1,72 @@
+[
+  {
+    "id": "A01",
+    "name": "全场零食满99减20",
+    "type": "满减",
+    "threshold": 99,
+    "value": 20,
+    "scope": "all",
+    "product_ids": [],
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "status": "进行中",
+    "description": "全场零食单笔满99元立减20元，可与优惠券叠加"
+  },
+  {
+    "id": "A02",
+    "name": "全场零食满199减50",
+    "type": "满减",
+    "threshold": 199,
+    "value": 50,
+    "scope": "all",
+    "product_ids": [],
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "status": "进行中",
+    "description": "全场零食单笔满199元立减50元，可与优惠券叠加"
+  },
+  {
+    "id": "A03",
+    "name": "饼干膨化专区第二件半价",
+    "type": "第二件半价",
+    "threshold": null,
+    "value": 0.5,
+    "scope": "product",
+    "product_ids": ["P06", "P07", "P08", "P09"],
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "status": "进行中",
+    "description": "乐事、奥利奥、旺旺雪饼同款第二件半价"
+  },
+  {
+    "id": "A04",
+    "name": "糖果巧克力专区9折",
+    "type": "折扣",
+    "threshold": null,
+    "value": 0.9,
+    "scope": "product",
+    "product_ids": ["P10", "P11", "P12"],
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "status": "进行中",
+    "description": "大白兔、德芙、费列罗活动商品9折"
+  },
+  {
+    "id": "A05",
+    "name": "辣味零食满49减8",
+    "type": "满减",
+    "threshold": 49,
+    "value": 8,
+    "scope": "category",
+    "product_ids": [],
+    "categories": ["辣味零食"],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "status": "进行中",
+    "description": "辣味零食(辣条/魔芋爽等)单笔满49元减8元"
+  }
+]

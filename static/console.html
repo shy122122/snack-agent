@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>零食电商客服 · 总控台（工作台 / 演示 / 管理后台）</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+</style>
+</head>
+<body class="bg-slate-900 text-slate-200 h-screen flex flex-col overflow-hidden">
+<header class="bg-slate-900 border-b border-white/10 shrink-0">
+  <div class="max-w-[1600px] mx-auto px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div class="flex items-center gap-2.5 min-w-0 mr-auto">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-white grid place-items-center shrink-0 shadow"><i class="fa fa-shopping-basket"></i></div>
+      <div class="min-w-0 leading-tight">
+        <h1 class="font-bold text-sm text-white truncate">零食电商客服 · 总控台</h1>
+        <p class="text-[11px] text-slate-400 truncate">Planner→Validator→Skill/Tool→风控→RunRecord · 同一 Agent 主链路</p>
+      </div>
+    </div>
+
+    <nav id="nav" class="flex flex-wrap items-center gap-1 text-sm" role="tablist" aria-label="总控台模块切换"></nav>
+
+    <div class="flex items-center gap-1.5 shrink-0 text-xs">
+      <a id="openNew" target="_blank" rel="noopener" class="px-2 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 inline-flex items-center gap-1"
+         title="在新窗口打开当前模块"><i class="fa fa-external-link"></i> <span class="hidden sm:inline">独立页</span></a>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 min-h-0 relative bg-slate-100">
+  <div id="panes" class="absolute inset-0"></div>
+</main>
+
+<script>
+// 两个分区：应用（工作台/演示）+ 管理后台（技能/工具/规划器/模型）
+const GROUPS=[
+  {label:null, items:[
+    {key:"work",  label:"工作台",  icon:"fa-shopping-basket", url:"/agent?embed=1"},
+    {key:"demo",  label:"演示",    icon:"fa-comments-o",      url:"/demo?embed=1"},
+    {key:"catalog",label:"商品目录", icon:"fa-sitemap",        url:"/catalog?embed=1"},
+  ]},
+  {label:"运营", items:[
+    {key:"ops",  label:"运营中心", icon:"fa-line-chart", url:"/ops?embed=1"},
+    {key:"eval", label:"评测中心", icon:"fa-flask",     url:"/eval?embed=1"},
+  ]},
+  {label:"管理后台", items:[
+    {key:"skills",  label:"技能",   icon:"fa-cubes",    url:"/skills?embed=1"},
+    {key:"tools",   label:"工具",   icon:"fa-wrench",   url:"/tools?embed=1"},
+    {key:"planner", label:"规划器", icon:"fa-map-signs",url:"/planner?embed=1"},
+    {key:"models",  label:"模型",   icon:"fa-cube",     url:"/models?embed=1"},
+  ]},
+];
+const nav=document.getElementById("nav"), panes=document.getElementById("panes");
+const btns={}, iframes={};
+GROUPS.forEach((g,gi)=>{
+  if(gi>0){
+    const d=document.createElement("span");
+    d.className="w-px self-stretch bg-white/10 mx-1 hidden sm:block"; nav.appendChild(d);
+    const cap=document.createElement("span");
+    cap.className="px-1.5 text-[10px] uppercase tracking-wider text-slate-500 font-medium select-none";
+    cap.textContent=g.label||""; nav.appendChild(cap);
+  }
+  g.items.forEach(t=>{
+    const btn=document.createElement("button");
+    btn.type="button"; btn.role="tab"; btn.id="tab-"+t.key; btn.setAttribute("aria-controls","pane-"+t.key);
+    btn.innerHTML='<i class="fa '+t.icon+' mr-1.5"></i>'+t.label;
+    btn.className="px-3 py-1.5 rounded-lg inline-flex items-center gap-0.5 font-medium transition-colors text-slate-300 hover:bg-white/10";
+    btn.onclick=()=>select(t.key,true);
+    nav.appendChild(btn); btns[t.key]=btn;
+
+    const fr=document.createElement("iframe");
+    fr.id="pane-"+t.key; fr.setAttribute("role","tabpanel"); fr.title=t.label;
+    fr.className="w-full h-full border-0 bg-slate-100"; fr.src=t.url; fr.style.display="none";
+    panes.appendChild(fr); iframes[t.key]=fr;
+  });
+});
+function activeKey(){
+  const h=(location.hash||"").replace(/^#/,"").toLowerCase();
+  const keys={}; GROUPS.forEach(g=>g.items.forEach(t=>keys[t.key]=1));
+  return keys[h]?h:"work";
+}
+function pick(k){ return GROUPS.flatMap(g=>g.items).find(t=>t.key===k); }
+function select(k,pushHash){
+  GROUPS.flatMap(g=>g.items).forEach(t=>{
+    const on=t.key===k;
+    btns[t.key].className="px-3 py-1.5 rounded-lg inline-flex items-center gap-0.5 font-medium transition-colors "
+      +(on?"bg-white text-slate-900 shadow":"text-slate-300 hover:bg-white/10");
+    btns[t.key].setAttribute("aria-selected",on?"true":"false");
+    iframes[t.key].style.display=on?"":"none";
+  });
+  const it=pick(k);
+  document.getElementById("openNew").href=(it?it.url.split("?")[0]:"/"); // 独立入口走原始路由
+  if(pushHash && location.hash!=="#"+k){ try{history.replaceState(null,"","#"+k);}catch(e){location.hash="#"+k;} }
+}
+select(activeKey(),false);
+window.addEventListener("hashchange",()=>select(activeKey(),false));
+</script>
+</body>
+</html>

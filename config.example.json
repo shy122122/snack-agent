@@ -1,0 +1,16 @@
+{
+  "llm": {
+    "base_url": "https://api.deepseek.com",
+    "api_key": "",
+    "model": "deepseek-chat",
+    "timeout": 90,
+    "default_temperature": 0.4,
+    "default_max_tokens": 1500
+  },
+  "app": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "currency": "¥"
+  },
+  "price_note": "复制本文件为 config.json 后填入 llm.api_key（sk- 开头）；也可改用环境变量 OPENAI_API_KEY，或设 SNACK_LLM_PROVIDER=classroom-fixture 走离线演示。"
+}

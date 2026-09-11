@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>运行详情 · 零食电商客服</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .fadein{animation:fadein .2s ease}@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1}}
+  details.trace>summary{list-style:none}details.trace>summary::-webkit-details-marker{display:none}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+    <a href="/" class="w-9 h-9 rounded-xl bg-orange-500 text-white grid place-items-center shadow hover:bg-orange-600"><i class="fa fa-arrow-left"></i></a>
+    <div class="flex-1 min-w-0">
+      <h1 class="font-bold leading-tight">运行详情 <span id="ridTxt" class="mono text-orange-500 text-sm"></span></h1>
+      <p class="text-xs text-slate-400">RunRecord · 计划 / 步骤 Trace / 风险 / 风控 / 标注</p>
+    </div>
+    <nav class="flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">演示</a>
+    </nav>
+  </div>
+</header>
+
+<div id="main" class="max-w-4xl mx-auto px-4 py-5 space-y-4">
+  <p id="loading" class="text-slate-400 text-sm py-10 text-center"><i class="fa fa-circle-o-notch fa-spin"></i> 加载运行记录…</p>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const RID=(location.pathname.match(/\/runs\/([^/]+)/)||[])[1]||"";
+$("#ridTxt").textContent=RID;
+
+const STATUS={ok:["text-emerald-600","bg-emerald-50","border-emerald-200","成功"],error:["text-rose-600","bg-rose-50","border-rose-200","出错"],degraded:["text-amber-600","bg-amber-50","border-amber-200","受限完成"],handoff:["text-indigo-600","bg-indigo-50","border-indigo-200","已转人工"],running:["text-sky-600","bg-sky-50","border-sky-200","运行中"],retry:["text-violet-600","bg-violet-50","border-violet-200","重试"]};
+
+async function j(url,opts){ const r=await fetch(url,opts); const d=await r.json().catch(()=>({})); if(!r.ok||d.ok===false) throw new Error(d.error||("HTTP "+r.status)); return d; }
+
+async function load(){
+  $("#loading").textContent="加载中…";
+  try{
+    const d=await j("/api/runs/"+encodeURIComponent(RID));
+    render(d.run);
+  }catch(e){
+    $("#main").innerHTML=`<div class="bg-white rounded-2xl border border-rose-200 p-8 text-center text-rose-600"><i class="fa fa-exclamation-triangle text-2xl block mb-2"></i>${esc(e.message||"加载失败")}<div class="mt-3"><a href="/" class="text-orange-500 underline text-sm">返回工作台</a></div></div>`;
+  }
+}
+
+function statusBadge(s){ const c=STATUS[s]||STATUS.ok; return `<span class="px-2 py-0.5 rounded-full text-xs border font-medium ${c.join(" ")}">${esc(c[3]||s)}</span>`; }
+
+function card(icon,title,inner,cls){ return `<section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 fadein"><h2 class="font-semibold text-sm flex items-center gap-2 mb-2"><i class="fa ${icon} ${cls||"text-slate-500"}"></i>${title}</h2>${inner}</section>`; }
+
+function render(r){
+  $("#main").innerHTML="";
+  const st=STATUS[r.status]||STATUS.ok;
+  $("#main").innerHTML=`
+    ${card("fa-circle-o","运行状态",`
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span>${statusBadge(r.status)}</span>
+        <span><b class="text-slate-700">${esc(r.provider||"-")}</b> / ${esc(r.model||"-")}</span>
+        <span><i class="fa fa-clock-o"></i> ${esc(r.createdAt||"")} · ${r.durationMs||0}ms</span>
+        <span>来源：${esc(r.source||"")}</span>
+        ${r.retryOf?`<a class="text-orange-500 underline" href="/runs/${esc(r.retryOf)}">重试自 #${esc(r.retryOf)}</a>`:""}
+        <span class="ml-auto">${r.costYuan?("估算成本 ¥"+r.costYuan):""}</span>
+      </div>
+      ${r.error?`<div class="mt-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 mono">错误：${esc(r.error)}</div>`:""}
+      ${r.blockedReason?`<div class="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">${esc(r.blockedReason)}</div>`:""}
+    `)}
+
+    ${card("fa-question-circle-o","用户问题",`<p class="text-slate-700 leading-6">${esc(r.question)}</p>`)}
+  `;
+
+  // 操作条
+  const ops=document.createElement("div");
+  ops.className="flex flex-wrap gap-2";
+  ops.innerHTML=`
+    <button data-act="retry" class="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-xl px-4 py-2"><i class="fa fa-refresh"></i>重试</button>
+    <button data-act="handoff" class="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-xl px-4 py-2"><i class="fa fa-user-o"></i>人工接管</button>
+    <button data-act="annotate" class="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm rounded-xl px-4 py-2"><i class="fa fa-tag"></i>标注</button>
+    <button data-act="explain" class="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm rounded-xl px-4 py-2"><i class="fa fa-commenting-o"></i>运行解释</button>
+  `;
+  $("#main").appendChild(ops);
+  ops.querySelector('[data-act=retry]').onclick=async()=>{ try{ setBusy(ops,"retry","重试中…"); const d=await j("/api/run/retry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:RID})}); location.href="/runs/"+d.run.id; }catch(e){ alert("重试失败："+e.message); setBusy(ops,"retry",null);} };
+  ops.querySelector('[data-act=handoff]').onclick=async()=>{ const note=prompt("接管原因（可空）","需人工核实处理"); if(note===null)return; try{ await j("/api/runs/"+RID+"/handoff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"manual",note})}); load(); }catch(e){ alert(e.message);} };
+  ops.querySelector('[data-act=annotate]').onclick=async()=>{ const text=prompt("标注内容",(r.annotation||{}).text||""); if(text===null)return; try{ await j("/api/runs/"+RID+"/annotate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,author:"workbench"})}); load(); }catch(e){ alert(e.message);} };
+  ops.querySelector('[data-act=explain]').onclick=async()=>{ try{ setBusy(ops,"explain","生成中…"); const d=await j("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:RID})}); addExplain(d.explanation); }catch(e){ alert(e.message);} setBusy(ops,"explain",null); };
+
+  // 计划
+  const pl=r.plan||{};
+  const risk=pl.risk||{};
+  const riskLine=risk.matched&&risk.matched.length?`<span class="text-rose-600 text-xs">· 命中风险词：${esc(risk.matched.join("、"))}</span>`:"";
+  $("#main").insertAdjacentHTML("beforeend", card("fa-map-signs","规划结果",`
+    <p class="text-slate-600 text-sm">${esc(pl.summary||"(无 summary)")}</p>
+    ${pl.reasoning?`<p class="text-xs text-slate-400 mt-1">理由：${esc(pl.reasoning)}</p>`:""}
+    ${riskLine}
+    <div class="flex flex-wrap gap-1.5 mt-3 text-[11px]">
+      ${(pl.steps||[]).map((s,i)=>`<span class="px-2 py-1 rounded-lg border ${s.type==="tool"?"border-sky-200 bg-sky-50 text-sky-700":"border-indigo-200 bg-indigo-50 text-indigo-700"}"><i class="fa ${s.type==="tool"?"fa-wrench":"fa-magic"}"></i> ${i+1}. ${esc(s.id)}</span>`).join("")||"<span class='text-slate-400'>（无步骤，可能已拦截）</span>"}
+    </div>
+  `));
+
+  // Trace
+  const steps=r.steps||[];
+  const body=steps.length? steps.map(stepRow).join("") : '<p class="text-slate-400 text-sm">无执行步骤。</p>';
+  $("#main").insertAdjacentHTML("beforeend", card("fa-list-ol","执行步骤（Trace）",`<div class="space-y-1.5">${body}</div>`));
+
+  // 最终回复
+  const fr=r.finalReply||{};
+  if(fr.text||r.status!=="ok"){
+    const blocked=fr.blocked;
+    const modeLabel={pass:"已过审",regenerated:"复审通过","risk_guard":"风险守卫已过审",blocked:"已拦截（未发送）"}[fr.mode]||fr.mode||"";
+    $("#main").insertAdjacentHTML("beforeend", card("fa-comments-o","最终客服回复",`
+      <div class="text-[15px] leading-7 whitespace-pre-wrap ${blocked?"text-slate-400":""}">${esc(fr.text||"(无文本)")}</div>
+      ${fr.mode?`<span class="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] border ${blocked?"bg-rose-100 text-rose-700 border-rose-200":"bg-emerald-100 text-emerald-700 border-emerald-200"}">${esc(modeLabel)}</span>`:""}
+      ${fr.blocked?`<p class="text-xs text-rose-500 mt-2"><i class="fa fa-ban"></i> 该回复未通过合规审核，已拦截、未发送。</p>`:""}
+    `));
+  }
+
+  // 风险
+  const rk=r.riskResult||r.risk;
+  if(rk&&rk.isRisky){
+    $("#main").insertAdjacentHTML("beforeend", card("fa-shield","风险识别",`
+      <p class="text-sm text-rose-700">命中风险类型：<b>${esc(rk.riskType||"疑似诈骗")}</b></p>
+      <p class="text-xs text-slate-500 mt-1">该运行未执行任何销售/收款/链接操作，直接采用安全话术并经风控。${rk.matched?("命中词："+esc(rk.matched.join("、"))):""}</p>
+    `));
+  }
+
+  // 风控
+  const md=r.moderation||{};
+  if(md){
+    const ok=md.pass;
+    $("#main").insertAdjacentHTML("beforeend", card("fa-check-circle-o","风控审核",`
+      <span class="px-2 py-0.5 rounded-full text-xs border ${ok?"bg-emerald-100 text-emerald-700 border-emerald-200":"bg-rose-100 text-rose-700 border-rose-200"}">${ok?"通过":"未通过"}</span>
+      ${md.level?`<span class="text-xs text-slate-500 ml-2">level=${esc(md.level)}</span>`:""}
+      ${(md.issues||[]).length?`<ul class="mt-2 space-y-1 text-xs text-rose-600">${md.issues.map(i=>`<li>· [${esc(i.type||"")}] ${esc(i.detail||"")}${i.evidence?` <span class="mono text-slate-400">「${esc(i.evidence)}」</span>`:""}</li>`).join("")}</ul>`:""}
+      ${md.suggestion?`<p class="text-xs text-slate-500 mt-1">建议：${esc(md.suggestion)}</p>`:""}
+    `));
+  }
+
+  // 标注 / 接管
+  if(r.annotation||r.handoff){
+    $("#main").insertAdjacentHTML("beforeend", card("fa-tag","标注 / 接管",`
+      ${r.handoff?`<p class="text-sm text-indigo-600 mb-1">已人工接管：${esc(r.handoff.mode||"manual")}（${esc((r.handoff.note)||"")}）@ ${esc(r.handoff.at||"")}</p>`:""}
+      ${r.annotation?`<p class="text-sm text-slate-600">标注：${esc(r.annotation.text||"")}<span class="text-xs text-slate-400"> —— ${esc(r.annotation.author||"")} @ ${esc(r.annotation.at||"")}</span></p>`:""}
+    `));
+  }
+}
+
+function addExplain(text){
+  $("#main").insertAdjacentHTML("beforeend", card("fa-commenting-o","运行解释（/api/explain）",`<pre class="text-sm text-slate-700 whitespace-pre-wrap leading-6 mono bg-slate-50 border border-slate-200 rounded-xl p-3">${esc(text)}</pre>`));
+  document.querySelector('section:last-of-type')?.scrollIntoView({behavior:"smooth"});
+}
+
+function setBusy(ops,act,label){
+  const b=ops.querySelector(`[data-act=${act}]`);
+  if(label){ b.dataset.old=b.innerHTML; b.disabled=true; b.innerHTML=`<i class="fa fa-circle-o-notch fa-spin"></i> ${label}`; }
+  else { b.disabled=false; if(b.dataset.old) b.innerHTML=b.dataset.old; }
+}
+
+function stepRow(s){
+  const icon=s.type==="tool"?"fa-wrench":"fa-magic";
+  const color=s.type==="tool"?"text-sky-600":"text-indigo-600";
+  const stColor=s.status==="ok"?"text-emerald-600 border-emerald-200 bg-emerald-50":s.status==="error"?"text-rose-600 border-rose-200 bg-rose-50":s.status==="skipped"?"text-slate-400 border-slate-200 bg-slate-100":"text-slate-500 border-slate-200 bg-white";
+  const label=s.status==="ok"?"成功":s.status==="error"?"失败":s.status==="skipped"?"跳过":s.status||"";
+  const out=JSON.stringify(s.output,null,2);
+  const payload={
+    stepId:s.stepId,type:s.type,id:s.id,role:s.role,purpose:s.purpose,source:s.source,status:s.status,
+    inputs:s.inputs, output:s.output,
+    note_log:s.note_log, error:s.error,
+    latency_ms:s.latency_ms, usage:s.usage, cost_yuan:s.cost_yuan,
+  };
+  const all=JSON.stringify(payload,null,2);
+  return `<details class="trace border border-slate-200 rounded-xl bg-slate-50/60 overflow-hidden fadein">
+    <summary class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-100/80 text-sm">
+      <span class="text-xs mono text-slate-400 w-7">${esc(s.stepId||s.index||"?")}</span>
+      <i class="fa ${icon} ${color}"></i>
+      <span class="font-medium">${esc(s.name||s.id)}</span>
+      <span class="text-[10px] mono text-slate-400">${esc(s.type)}.${esc(s.id)}</span>
+      ${s.purpose?`<span class="text-xs text-slate-400 truncate max-w-[35%]">· ${esc(s.purpose)}</span>`:""}
+      <span class="ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] border ${stColor}">${label}${s.latency_ms!=null?` · ${s.latency_ms}ms`:""}</span>
+      <i class="fa fa-chevron-down text-slate-300 text-xs"></i>
+    </summary>
+    <div class="bg-white border-t border-slate-200 px-3 py-2 space-y-2 max-h-[60vh] overflow-auto">
+      ${s.note_log&&s.note_log.length?`<div class="text-xs text-amber-600">提示：${esc(s.note_log.join("；"))}</div>`:""}
+      ${s.error?`<div class="text-xs text-rose-600 mono bg-rose-50 border border-rose-100 rounded px-2 py-1">错误：${esc(s.error)}</div>`:""}
+      <div>
+        <div class="text-[11px] text-slate-400 mb-1">输出 output</div>
+        <pre class="mono text-[11px] leading-5 text-slate-700 bg-slate-50 rounded-lg p-2 overflow-auto">${esc(out||"(空)")}</pre>
+      </div>
+      <details class="text-xs">
+        <summary class="cursor-pointer text-slate-400 hover:text-slate-600">完整 IO / 元数据</summary>
+        <pre class="mono text-[11px] leading-5 text-slate-500 bg-slate-50 rounded-lg p-2 overflow-auto mt-1">${esc(all)}</pre>
+      </details>
+    </div>
+  </details>`;
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>后台 · Skill 管理台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<script>tailwind.config={theme:{extend:{colors:{ink:"#1e293b"}}}};</script>
+<style>
+  body{font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;}
+  pre.json{background:#0f172a;color:#a5f3fc;font-size:12px;}
+  ::-webkit-scrollbar{height:8px;width:8px;}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px;}
+  .toggle{width:34px;height:20px;border-radius:999px;position:relative;transition:.2s;cursor:pointer;flex:none;}
+  .toggle i{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;}
+  .toggle.on{background:#059669;} .toggle.on i{left:16px;}
+  .toggle.off{background:#cbd5e1;}
+</style>
+</head>
+<body class="bg-slate-100 text-ink min-h-screen">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow"><i class="fa fa-gears text-lg"></i></div>
+      <div>
+        <div class="font-bold leading-tight">零食客服 Agent · 后台管理台</div>
+        <div class="text-[11px] text-slate-400 leading-none mt-0.5">Skill / Tool 可配置 · 保存后前台即时生效（无需重启）</div>
+      </div>
+    </div>
+    <nav class="flex items-center gap-2 text-sm">
+      <a href="/agent" class="px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-600">Agent 执行</a>
+      <a href="/admin" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 font-semibold">Skill 管理</a>
+    </nav>
+  </div>
+</header>
+
+<!-- 顶部 Tab -->
+<div class="max-w-6xl mx-auto px-4 pt-4">
+  <div class="flex flex-wrap gap-1 bg-white border border-slate-200 rounded-xl p-1.5 shadow-sm" id="tabs">
+    <button data-tab="skills" class="tab px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"><i class="fa fa-cogs"></i>技能管理</button>
+    <button data-tab="tools" class="tab px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 flex items-center gap-2"><i class="fa fa-wrench"></i>工具管理</button>
+    <button data-tab="data" class="tab px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 flex items-center gap-2"><i class="fa fa-database"></i>数据预览</button>
+    <button data-tab="settings" class="tab px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 flex items-center gap-2"><i class="fa fa-server"></i>模型设置</button>
+    <button data-tab="logs" class="tab px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 flex items-center gap-2"><i class="fa fa-history"></i>执行日志</button>
+  </div>
+</div>
+
+<main class="max-w-6xl mx-auto px-4 py-5 space-y-5">
+
+  <!-- SKILLS -->
+  <section id="tab-skills" class="tabpane">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="font-bold text-slate-800">Skill 列表 <span id="skillCount" class="text-slate-400 font-normal text-sm"></span></h2>
+        <p class="text-[12px] text-slate-400">Planner 只会编排"启用"的 Skill；编辑 Prompt / 模型参数保存后，前台 Planner 与 Executor 立即使用最新配置。</p>
+      </div>
+      <button id="btnResetSkills" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500"><i class="fa fa-undo mr-1"></i>恢复默认5个Skill</button>
+    </div>
+    <div id="skillList" class="grid grid-cols-1 xl:grid-cols-2 gap-3"></div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tab-tools" class="tabpane hidden">
+    <h2 class="font-bold text-slate-800 mb-1">Tool 列表</h2>
+    <p class="text-[12px] text-slate-400 mb-3">涉及价格 / 活动 / 优惠券的处理都是代码实现（确定性 Tool），模型不参与金额计算。可在此启停，并可输入参数试运行。</p>
+    <div id="toolList" class="grid grid-cols-1 xl:grid-cols-2 gap-3"></div>
+  </section>
+
+  <!-- DATA -->
+  <section id="tab-data" class="tabpane hidden">
+    <div class="flex items-center gap-2 mb-3">
+      <div class="flex rounded-lg bg-white border border-slate-200 p-1" id="dataTabs">
+        <button class="dtab px-4 py-1.5 rounded-md text-sm font-semibold" data-kind="products">products.json</button>
+        <button class="dtab px-4 py-1.5 rounded-md text-sm font-semibold text-slate-400" data-kind="activities">activities.json</button>
+        <button class="dtab px-4 py-1.5 rounded-md text-sm font-semibold text-slate-400" data-kind="coupons">coupons.json</button>
+      </div>
+      <span class="text-[12px] text-slate-400">本地 JSON 模拟数据库（只读预览，可在 data/ 目录编辑后刷新查看）</span>
+      <button id="btnDataReload" class="ml-auto text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"><i class="fa fa-refresh mr-1"></i>刷新</button>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-4 py-2 border-b text-sm font-semibold text-slate-600 flex items-center gap-2" id="dataTitle"></div>
+      <div class="overflow-auto"><table class="w-full text-[13px]" id="dataTable"><tbody id="dataBody"></tbody></table></div>
+      <button id="btnDataRaw" class="m-3 text-[12px] px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500"><i class="fa fa-code mr-1"></i>查看原始 JSON</button>
+      <pre id="dataRaw" class="json hidden m-3 overflow-auto p-3 rounded-xl" style="max-height:320px"></pre>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="tabpane hidden">
+    <div class="max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 class="font-bold text-slate-800 mb-1">大模型设置</h2>
+      <p class="text-[12px] text-slate-400 mb-5">统一按 OpenAI 兼容格式调用（默认 DeepSeek）。保存在本机 config.json。Key 留空且未设置时会沿用原 Key。</p>
+      <div class="space-y-4">
+        <div>
+          <label class="text-[12px] text-slate-500 font-semibold">API Key（sk- 开头）</label>
+          <input id="cf-key" type="password" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200" placeholder="DeepSeek API Key"/>
+          <div id="cf-keyH" class="text-[11px] text-slate-400 mt-1"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-[12px] text-slate-500 font-semibold">Base URL</label>
+            <input id="cf-base" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/>
+          </div>
+          <div>
+            <label class="text-[12px] text-slate-500 font-semibold">Model</label>
+            <input id="cf-model" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/>
+          </div>
+          <div>
+            <label class="text-[12px] text-slate-500 font-semibold">默认 Temperature</label>
+            <input id="cf-temp" type="number" step="0.1" min="0" max="2" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/>
+          </div>
+          <div>
+            <label class="text-[12px] text-slate-500 font-semibold">请求超时(秒)</label>
+            <input id="cf-timeout" type="number" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/>
+          </div>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button id="btnCfgSave" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"><i class="fa fa-save mr-1.5"></i>保存配置</button>
+          <button id="btnCfgTest" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50"><i class="fa fa-plug mr-1.5"></i>测试连接</button>
+          <span id="cfgMsg" class="text-[12px] self-center text-slate-400"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGS -->
+  <section id="tab-logs" class="tabpane hidden">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-slate-800">最近执行记录</h2>
+      <button id="btnLogsReload" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"><i class="fa fa-refresh mr-1"></i>刷新</button>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <table class="w-full text-[13px]">
+        <thead class="bg-slate-50 text-slate-400 text-[11px] uppercase"><tr>
+          <th class="px-4 py-2 text-left">时间</th><th class="px-4 py-2 text-left">用户问题</th><th class="px-4 py-2 text-left">计划摘要</th>
+          <th class="px-4 py-2 text-center">步骤</th><th class="px-4 py-2 text-center">风控</th><th class="px-4 py-2 text-center">成本</th>
+        </tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div id="logEmpty" class="hidden text-center text-slate-400 text-[13px] py-10">暂无执行记录，去前台跑一条问题吧</div>
+    </div>
+  </section>
+</main>
+
+<!-- 编辑 Skill 弹窗 -->
+<div id="skillModal" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-auto">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
+    <div class="px-5 py-3.5 border-b flex items-center justify-between">
+      <h3 class="font-bold text-slate-800"><i class="fa fa-cogs text-indigo-500 mr-2"></i>编辑 Skill <span id="sm-id-label" class="text-slate-400 font-normal text-sm"></span></h3>
+      <button class="close-modal text-slate-400 hover:text-slate-600"><i class="fa fa-times text-lg"></i></button>
+    </div>
+    <div class="px-5 py-4 space-y-4">
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2"><label class="text-[12px] text-slate-500 font-semibold">名称</label>
+          <input id="sm-name" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/></div>
+        <div><label class="text-[12px] text-slate-500 font-semibold">role（只读，决定流程语义）</label>
+          <input id="sm-role" disabled class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"/></div>
+      </div>
+      <div><label class="text-[12px] text-slate-500 font-semibold">描述（给 Planner 看的能力说明）</label>
+        <textarea id="sm-desc" rows="2" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"></textarea></div>
+      <div><label class="text-[12px] text-slate-500 font-semibold">Prompt（Skill 系统提示词）</label>
+        <textarea id="sm-prompt" rows="12" class="w-full mt-1 font-mono text-[12px] border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 leading-relaxed"></textarea></div>
+      <div class="grid grid-cols-4 gap-4">
+        <div><label class="text-[12px] text-slate-500 font-semibold">model（留空用默认）</label>
+          <input id="sm-model" placeholder="deepseek-chat" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/></div>
+        <div><label class="text-[12px] text-slate-500 font-semibold">temperature</label>
+          <input id="sm-temp" type="number" step="0.1" min="0" max="2" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/></div>
+        <div><label class="text-[12px] text-slate-500 font-semibold">max_tokens</label>
+          <input id="sm-tokens" type="number" class="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"/></div>
+        <div class="flex items-end pb-1 gap-2"><input id="sm-enabled" type="checkbox" class="w-4 h-4 accent-emerald-600"/>
+          <label for="sm-enabled" class="text-[12px] text-slate-500 font-semibold">启用</label></div>
+      </div>
+      <div class="flex items-center gap-2 pt-1">
+        <button id="btnSkillSave" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"><i class="fa fa-save mr-1"></i>保存</button>
+        <button class="close-modal px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm">取消</button>
+        <span id="skillMsg" class="text-[12px] text-slate-400"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 测试 / 试运行 弹窗 -->
+<div id="testModal" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-auto">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
+    <div class="px-5 py-3.5 border-b flex items-center justify-between">
+      <h3 class="font-bold text-slate-800"><i class="fa fa-flask text-emerald-500 mr-2"></i><span id="tm-title"></span></h3>
+      <button class="close-modal text-slate-400 hover:text-slate-600"><i class="fa fa-times text-lg"></i></button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div><label class="text-[12px] text-slate-500 font-semibold" id="tm-in-label">测试输入（JSON）</label>
+        <textarea id="tm-input" rows="4" class="w-full mt-1 font-mono text-[12px] border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-200"></textarea>
+        <div id="tm-hint" class="text-[11px] text-slate-400 mt-1"></div></div>
+      <button id="btnTestRun" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"><i class="fa fa-play mr-1"></i>运行</button>
+      <div id="tm-result" class="hidden space-y-2">
+        <div class="text-[12px] text-slate-500 flex items-center gap-3"><span id="tm-latency"></span><span id="tm-tokens"></span><span id="tm-cost"></span><span id="tm-model"></span></div>
+        <pre id="tm-out" class="json m-0 rounded-xl p-3 overflow-auto whitespace-pre-wrap break-all" style="max-height:340px"></pre>
+      </div>
+      <div id="tm-err" class="hidden rounded-xl bg-red-50 border border-red-100 text-red-600 text-[13px] px-3 py-2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let skillsArr=[], toolsArr=[], curData='products';
+let testCtx={type:'skill', id:null};   // {type:'skill'|'tool', id}
+
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function api(url,opts={}){
+  const r=await fetch(url,{method:opts.method||'GET',headers:{'Content-Type':'application/json'},body:opts.body?JSON.stringify(opts.body):undefined});
+  const j=await r.json().catch(()=>({ok:false,error:'响应解析失败'}));
+  if(!j.ok) throw new Error(j.error||'请求失败');
+  return j;
+}
+
+/* ---------- Tabs ---------- */
+const TAB_TITLES={skills:'技能管理',tools:'工具管理',data:'数据预览',settings:'模型设置',logs:'执行日志'};
+function showTab(name){
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('hidden'));
+  $('tab-'+name).classList.remove('hidden');
+  document.querySelectorAll('#tabs .tab').forEach(b=>{
+    const on=b.dataset.tab===name;
+    b.className='tab px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 '+(on?'bg-indigo-600 text-white shadow':'text-slate-500');
+  });
+  document.title='后台 · '+TAB_TITLES[name];
+  if(name==='skills') loadSkills();
+  if(name==='tools') loadTools();
+  if(name==='data') loadData();
+  if(name==='settings') loadConfig();
+  if(name==='logs') loadLogs();
+}
+document.querySelectorAll('#tabs .tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+
+/* ---------- Skills ---------- */
+const ROLE_STYLE={needs_extraction:'bg-slate-100 text-slate-600',recommend:'bg-violet-100 text-violet-600',reason:'bg-amber-100 text-amber-700',reply:'bg-rose-100 text-rose-600',moderation:'bg-red-100 text-red-600'};
+function toggleSwitch(on,onchange){
+  const el=document.createElement('span'); el.className='toggle '+(on?'on':'off');
+  const knob=document.createElement('i'); el.appendChild(knob);
+  el.onclick=()=>onchange(!on);
+  return el;
+}
+async function loadSkills(){
+  try{
+    const j=await api('/api/skills');
+    skillsArr=j.skills;
+    $('skillCount').textContent='('+skillsArr.length+' 个 · 启用 '+(skillsArr.filter(s=>s.enabled).length)+')';
+    const list=$('skillList'); list.innerHTML='';
+    skillsArr.forEach(s=>{
+      const card=document.createElement('div');
+      card.className='bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-2.5';
+      // head
+      const head=document.createElement('div'); head.className='flex items-center gap-2';
+      head.appendChild(toggleSwitch(s.enabled,on=>setSkillEnabled(s.id,on)));
+      const nm=document.createElement('b'); nm.className='text-[14px]'; nm.textContent=s.name;
+      const role=document.createElement('span'); role.className='text-[10px] px-1.5 py-0.5 rounded font-mono '+(ROLE_STYLE[s.role]||'bg-slate-100 text-slate-500'); role.textContent=s.role;
+      const idt=document.createElement('span'); idt.className='text-[10px] text-slate-400 font-mono'; idt.textContent='#'+s.id;
+      head.append(nm,role,idt);
+      card.appendChild(head);
+      const desc=document.createElement('p'); desc.className='text-[12px] text-slate-500 leading-relaxed line-clamp-2'; desc.textContent=s.description||'';
+      card.appendChild(desc);
+      const mp=s.model_params||{};
+      const meta=document.createElement('div'); meta.className='text-[11px] text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5';
+      meta.innerHTML=`<span>模型: ${mp.model||'默认'}</span><span>temp: ${mp.temperature}</span><span>max_tokens: ${mp.max_tokens}</span><span>prompt: ${(s.prompt||'').length} 字符</span>`;
+      card.appendChild(meta);
+      const btns=document.createElement('div'); btns.className='flex gap-2 pt-1 border-t border-slate-100 mt-auto';
+      const b1=document.createElement('button'); b1.className='px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[12px] font-semibold'; b1.innerHTML='<i class="fa fa-edit mr-1"></i>编辑';
+      b1.onclick=()=>openSkillEditor(s);
+      const b2=document.createElement('button'); b2.className='px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[12px] font-semibold'; b2.innerHTML='<i class="fa fa-flask mr-1"></i>测试';
+      b2.onclick=()=>openTest({type:'skill',id:s.id,name:s.name,kind:s.role});
+      btns.append(b1,b2); card.appendChild(btns);
+      list.appendChild(card);
+    });
+  }catch(e){ toast(e.message); }
+}
+async function setSkillEnabled(id,on){
+  try{ await api('/api/skills/'+id,{method:'PUT',body:{enabled:on}}); loadSkills(); toast((on?'已启用 ':'已停用 ')+id+'，前台 Planner 将立即生效。','ok'); }
+  catch(e){ toast(e.message); }
+}
+function openSkillEditor(s){
+  const mp=s.model_params||{};
+  $('sm-id-label').textContent='· '+s.id;
+  $('sm-name').value=s.name||''; $('sm-desc').value=s.description||''; $('sm-prompt').value=s.prompt||'';
+  $('sm-role').value=s.role||''; $('sm-model').value=mp.model||''; $('sm-temp').value=mp.temperature??''; $('sm-tokens').value=mp.max_tokens??''; $('sm-enabled').checked=!!s.enabled;
+  $('skillModal').dataset.sid=s.id;
+  $('skillModal').classList.remove('hidden'); $('skillMsg').textContent='';
+}
+async function saveSkill(){
+  const sid=$('skillModal').dataset.sid;
+  const body={
+    name:$('sm-name').value.trim(), description:$('sm-desc').value.trim(), prompt:$('sm-prompt').value,
+    enabled:$('sm-enabled').checked,
+    model_params:{ model:$('sm-model').value.trim()||null,
+      temperature:parseFloat($('sm-temp').value), max_tokens:parseInt($('sm-tokens').value)||null }
+  };
+  try{
+    await api('/api/skills/'+sid,{method:'PUT',body});
+    $('skillMsg').textContent='已保存 ✓ 前台 Planner/Executor 使用最新配置。';
+    setTimeout(()=>$('skillModal').classList.add('hidden'),600);
+    loadSkills();
+  }catch(e){ $('skillMsg').textContent=e.message; }
+}
+$('btnSkillSave').addEventListener('click',saveSkill);
+
+/* ---------- Tools ---------- */
+async function loadTools(){
+  try{
+    const j=await api('/api/tools'); toolsArr=j.tools;
+    const list=$('toolList'); list.innerHTML='';
+    toolsArr.forEach(t=>{
+      const card=document.createElement('div');
+      card.className='bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-2.5';
+      const head=document.createElement('div'); head.className='flex items-center gap-2';
+      head.appendChild(toggleSwitch(t.enabled,on=>setToolEnabled(t.id,on)));
+      const nm=document.createElement('b'); nm.className='text-[14px]'; nm.textContent=t.name;
+      const idt=document.createElement('span'); idt.className='text-[10px] text-slate-400 font-mono'; idt.textContent='#'+t.id;
+      const tag=document.createElement('span'); tag.className='text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 font-mono'; tag.textContent='code';
+      head.append(nm,idt,tag); card.appendChild(head);
+      const desc=document.createElement('p'); desc.className='text-[12px] text-slate-500 leading-relaxed'; desc.textContent=t.description||'';
+      card.appendChild(desc);
+      const ps=document.createElement('div'); ps.className='text-[11px] text-slate-400';
+      ps.textContent='参数: '+(t.params?Object.keys(t.params).join(' / '):'无')+' · 产出: '+t.artifact;
+      card.appendChild(ps);
+      const b=document.createElement('button'); b.className='self-start px-3 py-1.5 rounded-lg bg-cyan-50 text-cyan-700 hover:bg-cyan-100 text-[12px] font-semibold';
+      b.innerHTML='<i class="fa fa-play mr-1"></i>试运行';
+      b.onclick=()=>openTest({type:'tool',id:t.id,name:t.name,params:t.params});
+      card.appendChild(b);
+      list.appendChild(card);
+    });
+  }catch(e){ toast(e.message); }
+}
+async function setToolEnabled(id,on){
+  try{ await api('/api/tools/'+id,{method:'PUT',body:{enabled:on}}); loadTools(); toast((on?'已启用 ':'已停用 ')+id,'ok'); }
+  catch(e){ toast(e.message); }
+}
+
+/* ---------- Test modal ---------- */
+const INPUT_TEMPLATE={
+  needs:'{\n  "user_input": "我想买点坚果和辣条，预算100以内，周末聚会吃"\n}',
+  recommend:'{\n  "needs": {"budget":100,"category":"坚果炒货","query_keywords":["坚果"]},\n  "products": [{"id":"P01","name":"每日坚果礼盒","category":"坚果炒货","price":68.9}]\n}',
+  reason:'{\n  "selection": {"items":[{"product_id":"P01","qty":1}]},\n  "products": [{"id":"P01","name":"每日坚果礼盒","category":"坚果炒货","price":68.9}],\n  "price": {"final_total": 48.9}\n}',
+  reply:'{\n  "user_input": "给我推荐点坚果",\n  "selection": {"items":[{"product_id":"P01","qty":1}]},\n  "products": [{"id":"P01","name":"每日坚果礼盒","category":"坚果炒货","price":68.9}],\n  "price": {"final_total": 48.9},\n  "reasons": {"reasons":[{"product_id":"P01","body":"口感香脆"}]}\n}',
+  moderation:'{\n  "reply": "这款只要 ¥38，全网最低价，明天必到",\n  "facts": "【真实在售商品】\\n- P01 每日坚果礼盒 ¥68.9" \n}'
+};
+function openTest(ctx){
+  testCtx=ctx;
+  $('tm-title').textContent=(ctx.type==='skill'?'测试 Skill':'试运行 Tool')+' · '+ctx.name+'  #'+ctx.id;
+  if(ctx.type==='skill'){
+    $('tm-in-label').textContent='测试输入（与 Skill 期望的 input JSON 一致，可参考模板）';
+    $('tm-input').value=INPUT_TEMPLATE[ctx.kind]||'{\n  "user_input": "测试问题"\n}';
+    $('tm-hint').textContent='Skill 实际会按它的 Prompt + 此输入调用大模型。';
+  }else{
+    $('tm-in-label').textContent='运行参数（JSON）';
+    const ex={};
+    Object.keys(ctx.params||{}).forEach(k=>{ ex[k]=null; });
+    $('tm-input').value=JSON.stringify(ex,null,2);
+    $('tm-hint').textContent='纯代码执行，不消耗 Token；返回本地数据。参数模板：'+Object.keys(ctx.params||{}).join(' , ');
+  }
+  $('tm-result').classList.add('hidden'); $('tm-err').classList.add('hidden');
+  $('testModal').classList.remove('hidden');
+}
+async function runTest(){
+  const out=$('tm-out'); $('tm-result').classList.add('hidden'); $('tm-err').classList.add('hidden');
+  $('btnTestRun').disabled=true;
+  let inputs;
+  try{ inputs=JSON.parse($('tm-input').value||'{}'); }
+  catch(e){ showErr('输入不是合法 JSON：'+e.message); return; }
+  try{
+    if(testCtx.type==='skill'){
+      const j=await api('/api/skills/'+testCtx.id+'/test',{method:'POST',body:{inputs}});
+      const r=j.result;
+      out.textContent=JSON.stringify(r.parsed!==undefined&&r.parsed!==null?r.parsed:({text:r.content}),null,2);
+      $('tm-latency').textContent='⏱ '+r.latency_ms+'ms';
+      $('tm-tokens').textContent='tokens: '+((r.usage&&r.usage.total_tokens)||'-');
+      $('tm-cost').textContent='成本 ¥'+(r.cost_yuan||0);
+      $('tm-model').textContent='模型: '+((r.usage&&r.usage.model)||'-');
+    }else{
+      const j=await api('/api/tools/'+testCtx.id+'/run',{method:'POST',body:{inputs}});
+      out.textContent=JSON.stringify(j.output,null,2);
+      $('tm-latency').textContent=''; $('tm-tokens').textContent='纯代码(0 token)'; $('tm-cost').textContent=''; $('tm-model').textContent='';
+    }
+    $('tm-result').classList.remove('hidden');
+  }catch(e){ showErr(e.message); }
+  finally{ $('btnTestRun').disabled=false; }
+  function showErr(m){ const b=$('tm-err'); b.textContent=m; b.classList.remove('hidden'); }
+}
+$('btnTestRun').addEventListener('click',runTest);
+
+/* ---------- Data ---------- */
+const DATA_COLS={
+  products:['id','name','category','price','spec','sales','rating','status'],
+  activities:['id','name','type','threshold','value','scope','status','description'],
+  coupons:['id','name','condition','value','scope','description'],
+};
+let dataRows=[];
+async function loadData(){
+  try{
+    const j=await api('/api/data/'+curData); dataRows=j.rows;
+    $('dataTitle').textContent=curData+'.json · 共 '+dataRows.length+' 条';
+    const cols=DATA_COLS[curData];
+    const tb=$('dataBody'); tb.innerHTML='';
+    if(!dataRows.length){ tb.innerHTML='<tr><td class="px-4 py-6 text-center text-slate-400">空</td></tr>'; return; }
+    dataRows.forEach(r=>{
+      const tr=document.createElement('tr'); tr.className='border-t border-slate-100 hover:bg-slate-50';
+      cols.forEach(c=>{
+        const td=document.createElement('td'); td.className='px-4 py-2 align-top';
+        let v=r[c]; if(typeof v==='object') v=JSON.stringify(v);
+        if(c==='price'||c==='condition'||c==='value') td.textContent=v; else td.textContent=v??'-';
+        if(c==='name'){ td.className='px-4 py-2 font-medium'; }
+        td.textContent=v===undefined?'-':v;
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }catch(e){ toast(e.message); }
+}
+document.querySelectorAll('.dtab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.dtab').forEach(x=>x.className='dtab px-4 py-1.5 rounded-md text-sm font-semibold text-slate-400');
+  b.className='dtab px-4 py-1.5 rounded-md text-sm font-semibold text-slate-700 bg-indigo-50';
+  curData=b.dataset.kind; loadData();
+}));
+$('btnDataReload').addEventListener('click',loadData);
+$('btnDataRaw').addEventListener('click',()=>{ const p=$('dataRaw'); p.textContent=JSON.stringify(dataRows,null,2); p.classList.toggle('hidden'); });
+
+/* ---------- Settings ---------- */
+async function loadConfig(){
+  try{
+    const j=await api('/api/config'); const l=j.llm;
+    $('cf-key').value='';
+    $('cf-keyH').textContent=l.api_key_set?('已设置：'+l.api_key_masked+'（留空保存则保持不变）'):'未设置。请填入 DeepSeek Key：sk-xxxx';
+    $('cf-base').value=l.base_url; $('cf-model').value=l.model; $('cf-temp').value=l.default_temperature; $('cf-timeout').value=l.timeout;
+    $('cfgMsg').textContent='';
+  }catch(e){ toast(e.message); }
+}
+async function saveConfig(){
+  $('cfgMsg').textContent='保存中…';
+  const body={ llm:{
+    base_url:$('cf-base').value.trim(), model:$('cf-model').value.trim(),
+    default_temperature:parseFloat($('cf-temp').value)||0.4, timeout:parseInt($('cf-timeout').value)||90,
+    api_key:$('cf-key').value.trim() } };
+  try{ await api('/api/config',{method:'PUT',body}); $('cfgMsg').textContent='已保存 ✓'; loadConfig(); }
+  catch(e){ $('cfgMsg').textContent=e.message; }
+}
+async function testCfg(){
+  $('cfgMsg').textContent='连接测试中…';
+  try{ const j=await api('/api/config/test',{method:'POST',body:{}}); $('cfgMsg').textContent='✓ 连接成功 · '+j.model+' · '+j.latency_ms+'ms · 返回：'+j.reply; }
+  catch(e){ $('cfgMsg').textContent=e.message; }
+}
+$('btnCfgSave').addEventListener('click',saveConfig);
+$('btnCfgTest').addEventListener('click',testCfg);
+
+/* ---------- Logs ---------- */
+async function loadLogs(){
+  try{
+    const j=await api('/api/agent/logs?limit=30'); const logs=j.logs||[];
+    $('logEmpty').classList.toggle('hidden',logs.length>0);
+    const tb=$('logBody'); tb.innerHTML='';
+    logs.forEach(l=>{
+      const tr=document.createElement('tr'); tr.className='border-t border-slate-100 hover:bg-slate-50 cursor-pointer';
+      const ts=document.createElement('td'); ts.className='px-4 py-2 text-slate-400 whitespace-nowrap'; ts.textContent=l.ts;
+      const qs=document.createElement('td'); qs.className='px-4 py-2 max-w-[240px] truncate text-slate-600'; qs.textContent=l.question; qs.title=l.question;
+      const ps=document.createElement('td'); ps.className='px-4 py-2 max-w-[300px] truncate text-slate-500 text-[12px]'; ps.textContent=l.plan_summary||'';
+      const st=document.createElement('td'); st.className='px-4 py-2 text-center'; st.innerHTML=`<span class="px-1.5 py-0.5 rounded ${l.steps_count>0?'bg-indigo-50 text-indigo-600':'bg-slate-100 text-slate-400'} text-[11px]">${l.steps_count}步</span>`;
+      const md=document.createElement('td'); md.className='px-4 py-2 text-center';
+      if(l.blocked) md.innerHTML='<span class="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[11px]">拦截</span>';
+      else if(l.moderation_pass) md.innerHTML='<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[11px]">通过</span>';
+      else md.innerHTML='<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[11px]">—</span>';
+      const ct=document.createElement('td'); ct.className='px-4 py-2 text-center text-slate-400 text-[12px]'; ct.textContent='¥'+(l.cost_yuan||0);
+      tr.append(ts,qs,ps,st,md,ct);
+      tr.onclick=()=>{ toast(l.error?('执行出错：'+l.error):('最终回复：'+(l.final_reply||'无'))); };
+      tb.appendChild(tr);
+    });
+  }catch(e){ toast(e.message); }
+}
+$('btnLogsReload').addEventListener('click',loadLogs);
+
+/* ---------- 通用 ---------- */
+let toastTimer;
+function toast(msg,type){
+  let el=$('toastBox');
+  if(!el){ el=document.createElement('div'); el.id='toastBox';
+    el.className='fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-xl shadow-lg text-[13px] font-medium bg-slate-800 text-white max-w-[90vw]';
+    document.body.appendChild(el); }
+  el.textContent=msg; el.classList.remove('hidden');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.add('hidden'),2600);
+}
+document.querySelectorAll('.close-modal').forEach(b=>b.addEventListener('click',()=>{ $('skillModal').classList.add('hidden'); $('testModal').classList.add('hidden'); }));
+$('skillModal').addEventListener('click',e=>{ if(e.target===$('skillModal')) $('skillModal').classList.add('hidden'); });
+$('testModal').addEventListener('click',e=>{ if(e.target===$('testModal')) $('testModal').classList.add('hidden'); });
+
+// 恢复默认 5 个 Skill：把数据文件里的 enabled/prompt 等还原为内置默认
+$('btnResetSkills').addEventListener('click',async()=>{
+  if(!confirm('将把 5 个 Skill 全部恢复为内置默认配置（覆盖当前编辑），确定？')) return;
+  try{
+    const defaults=await fetch('/api/skills').then(r=>r.json()); // 仅占位，真正默认在服务端
+    // 服务端内置默认定义，前端无法取到，改为逐项重置：先获取当前列表按 id 保存为空 patch 不可行 —— 调用后端专用接口
+    const res=await fetch('/api/admin/reset-skills',{method:'POST'}).then(r=>r.json());
+    if(res.ok){ toast('已恢复默认配置','ok'); loadSkills(); } else throw new Error(res.error);
+  }catch(e){ toast(e.message); }
+});
+
+showTab('skills');
+</script>
+</body>
+</html>

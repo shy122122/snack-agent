@@ -1,0 +1,50 @@
+[
+  {
+    "id": "C01",
+    "name": "全场通用券 满30减5",
+    "type": "满减券",
+    "condition": 30,
+    "value": 5,
+    "scope": "all",
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "description": "全场通用，单笔实付满30元可用，减5元"
+  },
+  {
+    "id": "C02",
+    "name": "全场通用券 满99减15",
+    "type": "满减券",
+    "condition": 99,
+    "value": 15,
+    "scope": "all",
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "description": "全场通用，单笔实付满99元可用，减15元"
+  },
+  {
+    "id": "C03",
+    "name": "坚果肉脯专享券 满59减8",
+    "type": "满减券",
+    "condition": 59,
+    "value": 8,
+    "scope": "category",
+    "categories": ["坚果炒货", "肉脯肉干"],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "description": "坚果炒货/肉脯肉干专用，满59元减8元"
+  },
+  {
+    "id": "C04",
+    "name": "新客首单券 满49减10",
+    "type": "满减券",
+    "condition": 49,
+    "value": 10,
+    "scope": "all",
+    "categories": [],
+    "start": "2026-01-01",
+    "end": "2026-12-31",
+    "description": "新客首单可用，满49元减10元（MVP 场景默认视为可用）"
+  }
+]

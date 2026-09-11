@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>模型设置 · 零食电商客服后台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .fadein{animation:fadein .18s ease}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-sky-500 text-white grid place-items-center shadow"><i class="fa fa-cube text-lg"></i></div>
+    <div class="flex-1 min-w-0">
+      <h1 class="font-bold leading-tight">模型设置</h1>
+      <p class="text-xs text-slate-500 truncate">选择 LLM Provider · 查看配置状态（密钥只显示“是否已配置”，永不回传原文）· 真实连通测试</p>
+    </div>
+    <nav class="flex flex-wrap items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">演示</a>
+      <a href="/skills" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">技能</a>
+      <a href="/tools" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工具</a>
+      <a href="/planner" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">规划器</a>
+      <a href="/models" class="px-3 py-1.5 rounded-lg bg-sky-100 text-sky-700 font-medium">模型</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-6xl mx-auto px-4 py-5">
+  <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <button onclick="load()" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50"><i class="fa fa-refresh"></i> 刷新</button>
+    <span class="text-slate-400 hidden sm:inline">Provider 切换会影响后续 RunRecord 的 provider/model；历史记录不变。密钥以 <b class="mono">●</b> 保护，页面/日志从不含 Key 原文。</span>
+  </div>
+
+  <div id="envBanner" class="hidden"></div>
+  <div id="effCard" class="hidden"></div>
+
+  <div id="loadCard" class="hidden bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400"><i class="fa fa-circle-o-notch fa-spin"></i> 加载中…</div>
+  <div id="errCard" class="hidden bg-white rounded-2xl p-6 shadow-sm ring-2 ring-rose-200 text-sm text-rose-700 whitespace-pre-wrap"></div>
+  <div id="emptyCard" class="hidden bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400"><i class="fa fa-inbox"></i> 没有可用 Provider</div>
+  <div id="list" class="space-y-4"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(url,method,body){
+  const r=await fetch(url,{method:method||"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+  if(j&&j.ok===false) throw new Error(j.error||"操作失败");
+  return j;
+}
+function toast(msg,kind){
+  const d=document.createElement("div");
+  d.className="fixed bottom-4 right-4 z-[60] px-4 py-2 rounded-xl text-sm shadow-lg text-white fadein max-w-sm break-words "+(kind==="err"?"bg-rose-600":"bg-emerald-600");
+  d.innerHTML=esc(msg); document.body.appendChild(d); setTimeout(()=>d.remove(),kind==="err"?6000:2600);
+}
+let D=null; // { effective, catalog }
+function chip(txt,cls){return `<span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap ${cls}">${txt}</span>`;}
+function setBtn(btn,on,txt){
+  if(!btn) return;
+  if(on){ btn.disabled=true; btn.dataset.old=btn.innerHTML; btn.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> '+txt; }
+  else { btn.disabled=false; btn.innerHTML=btn.dataset.old||btn.innerHTML; }
+}
+function effName(pid){ const c=(D.catalog||[]).find(x=>x.id===pid); return c?c.name:pid; }
+
+function renderEnvBanner(){
+  const b=$("#envBanner"); b.classList.add("hidden");
+  if(!D.effective.env_forcing) return;
+  b.classList.remove("hidden");
+  b.innerHTML=`<div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800 mb-4 fadein">
+    <b><i class="fa fa-exclamation-triangle"></i> 环境变量固定了 Provider</b>
+    <p class="mt-1 text-amber-700/90 text-xs leading-5">启动进程时设置了 <b class="mono">SNACK_LLM_PROVIDER=${esc(D.effective.env_provider||"")}</b>，当前 Provider 选择由环境变量决定（权威，优先级最高）。
+    下方「设为当前」已停用；若需改选，请清除该环境变量后重启进程。连接参数仍可在下方保存，供无环境变量时使用。</p></div>`;
+}
+
+function renderEff(){
+  const box=$("#effCard"); box.classList.remove("hidden");
+  const e=D.effective, c=(D.catalog||[]).find(x=>x.id===e.name)||{};
+  const model=c.config&&c.config.model?c.config.model:(c.default_model||"—");
+  const cfgCount=(c.env||[]).filter(x=>x.env_set||x.stored_set).length;
+  box.innerHTML=`<div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-4 fadein">
+    <div class="flex flex-wrap items-start gap-3">
+      <div class="w-10 h-10 rounded-xl ${e.demo?"bg-emerald-100 text-emerald-600":"bg-indigo-100 text-indigo-600"} grid place-items-center"><i class="fa ${e.demo?"fa-flask":"fa-rocket"}"></i></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="font-bold">当前生效 Provider</h2>
+          ${e.demo?chip("课堂稳定演示（确定性 · 不联网）","bg-emerald-100 text-emerald-700"):""}
+          ${e.ready?chip("已可调用","bg-emerald-100 text-emerald-700"):chip("缺少必要配置","bg-rose-100 text-rose-600")}
+        </div>
+        <p class="mt-1 font-semibold text-slate-900">${esc(effName(e.name))} <span class="mono text-xs text-slate-400">${esc(e.name)}</span></p>
+        <p class="text-xs text-slate-500 mt-0.5">默认模型 <b class="mono">${esc(model)}</b> · 已就绪字段 ${cfgCount} 项
+          ${e.demo?"· 走与真实模型完全相同的 规划→校验→执行→风控→RunRecord 链路":""}
+        </p>
+      </div>
+      <div class="text-right text-xs text-slate-400 shrink-0">生效优先级<br/><b class="mono">环境变量 &gt; 后台已选 &gt; 默认</b></div>
+    </div>
+    ${e.demo?`<div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+      <div class="text-xs text-slate-500 mr-auto max-w-xl"><i class="fa fa-eraser mr-1 text-rose-400"></i>课堂重置：把 <b>评测集 / Skills / Skill 版本 / 评测批次 / 运营标注 / 改进建议</b> 恢复到「已知初始态」（幂等；商品 / 订单 / 密钥等基础数据不动）。</div>
+      <button onclick="classroomReset()" class="px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium shadow-sm"><i class="fa fa-refresh mr-1"></i>执行课堂重置</button>
+    </div>`:""}
+  </div>`;
+}
+
+async function classroomReset(){
+  const lines=["评测集(仅9种子)","Skills(默认6)","Skill 版本快照","评测批次","运营标注","改进建议"];
+  if(!confirm("确认执行课堂重置？\n将恢复：\n  · "+lines.join("\n  · ")+"\n商品/订单/密钥等不动。此操作不可撤销。")) return;
+  try{
+    const j=await api("/api/system/classroom-reset","POST");
+    if(!j.ok){ if(j.activeBatchId) toast("有批次运行中，请先取消/等待："+j.activeBatchId,"err"); else toast(j.error||"重置失败","err"); return; }
+    toast("课堂重置完成","ok");
+    await load();
+  }catch(e){ toast("请求失败："+e.message,"err"); }
+}
+
+// ---- Provider 配置表单（仅非密钥字段回填；密钥永远留空）----
+const EXTRA_OF={"OPENAI_API_KEY":"legacy_key","OPENAI_BASE_URL":"legacy_base_url","LLM_MODEL":"legacy_model"};
+function keyPh(c){
+  const s=(c.env||[]).find(e=>e.secret);
+  const on=(s&&s.env_set)||(s&&s.stored_set)||(c.extra&&c.extra.legacy_key)||false;
+  return on?"已配置密钥：留空=保持，输入=更换":"尚未配置：输入后保存即持久化（前端不回显原文）";
+}
+function envChips(c){
+  if(!(c.env||[]).length) return "";
+  const rows=(c.env||[]).map(e=>{
+    const src=[];
+    if(e.env_set) src.push(chip("环境变量","bg-emerald-100 text-emerald-700"));
+    if(e.stored_set) src.push(chip("后台已存","bg-sky-100 text-sky-700"));
+    const lk=EXTRA_OF[e.key];
+    if(lk&&c.extra&&c.extra[lk]) src.push(chip("旧 config.json","bg-amber-100 text-amber-700"));
+    if(!src.length) src.push('<span class="text-slate-400">未配置</span>');
+    return `<div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span class="mono text-slate-600 font-medium">${esc(e.key)}</span>
+      <span class="text-slate-400">${esc(e.label)}${e.secret?' <i class="fa fa-lock text-slate-300" title="密钥，不显示原文"></i>':""}</span>
+      <span class="flex flex-wrap gap-1 ml-auto">${src.join("")}</span>
+    </div>`;
+  }).join("");
+  return `<div class="grid sm:grid-cols-3 gap-1.5">${rows}</div>`;
+}
+function fieldHtml(f,c,dlid){
+  const val=(c.config&&c.config[f.k]!=null)?c.config[f.k]:"";
+  if(f.t==="secret")
+    return `<div class="flex flex-col gap-1 min-w-0">
+      <label class="text-xs text-slate-500 flex items-center gap-1"><i class="fa fa-lock text-slate-300"></i>${esc(f.l)}</label>
+      <input data-cfg="${f.k}" type="password" autocomplete="new-password" spellcheck="false"
+        placeholder="${esc(f.ph)}" class="mono w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-amber-50/40 focus:outline-none focus:ring-2 focus:ring-sky-300"/>
+      <span class="text-[10px] text-slate-400 break-words">${esc(f.hint||"")}</span>
+    </div>`;
+  if(f.t==="model")
+    return `<div class="flex flex-col gap-1 min-w-0">
+      <label class="text-xs text-slate-500">${esc(f.l)}</label>
+      <input data-cfg="${f.k}" list="${dlid}" value="${esc(val)}" spellcheck="false" placeholder="${esc(f.ph)}"
+        class="mono w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-300"/>
+      <datalist id="${dlid}">${(c.models||[]).concat(c.default_model?[c.default_model]:[]).filter((m,i,a)=>a.indexOf(m)===i).map(m=>`<option value="${esc(m)}"></option>`).join("")}</datalist>
+      <span class="text-[10px] text-slate-400 break-words">缺省 ${esc(c.default_model||"—")}</span>
+    </div>`;
+  if(f.t==="number")
+    return `<div class="flex flex-col gap-1 min-w-0">
+      <label class="text-xs text-slate-500">${esc(f.l)}</label>
+      <input data-cfg="${f.k}" type="number" value="${esc(val)}" placeholder="${esc(f.ph)}" min="1" max="600"
+        class="mono w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-300"/>
+    </div>`;
+  return `<div class="flex flex-col gap-1 min-w-0">
+    <label class="text-xs text-slate-500">${esc(f.l)}</label>
+    <input data-cfg="${f.k}" type="text" value="${esc(val)}" spellcheck="false" placeholder="${esc(f.ph)}"
+      class="mono w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-300 break-all"/>
+  </div>`;
+}
+const FORM_DEFS={
+  "openai-compatible":[
+    {k:"base_url",l:"Base URL",t:"text",ph:"https://api.deepseek.com"},
+    {k:"model",l:"默认模型",t:"model",ph:"deepseek-chat"},
+    {k:"api_key",l:"API Key",t:"secret",hint:"深色框=密钥输入框"},
+    {k:"timeout",l:"超时（秒）",t:"number",ph:"90"},
+  ],
+  "coze":[
+    {k:"base_url",l:"Base URL",t:"text",ph:"https://api.coze.com"},
+    {k:"bot_id",l:"Bot ID",t:"text",ph:""},
+    {k:"api_key",l:"访问令牌",t:"secret",hint:"深色框=密钥输入框"},
+    {k:"timeout",l:"超时（秒）",t:"number",ph:"120"},
+  ],
+};
+function configArea(c){
+  if(c.id==="classroom-fixture")
+    return `<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2.5 text-xs text-emerald-800 leading-5">
+      <b><i class="fa fa-flask"></i> 无需配置</b> —— 确定性离线演示 Provider：不联网、不需 Key/Bot，任何问题按剧本稳定返回。
+      真实接入后请把 Provider 切回 OpenAI 兼容接口或 Coze。</div>`;
+  const defs=FORM_DEFS[c.id]||[];
+  // 每个 secret 字段的提示
+  const withPh=defs.map(f=>{ if(f.t==="secret"){const kp=keyPh(c);return {...f,ph:kp};} return f; });
+  const dlid="dl-"+esc(c.id);
+  return `<div class="grid sm:grid-cols-2 gap-2.5">${withPh.map(f=>fieldHtml(f,c,dlid)).join("")}</div>`;
+}
+function effActive(c){ return D.effective.name===c.id; }
+function cardHtml(c){
+  const active=effActive(c);
+  const canSwitch=!D.effective.env_forcing && !active;
+  const noFields=(c.id==="classroom-fixture");
+  const badges=[
+    c.stable_demo?chip("课堂稳定演示","bg-emerald-100 text-emerald-700"):"",
+    active?chip("当前生效","bg-indigo-600 text-white"):(c.selected?chip("后台已选","bg-slate-200 text-slate-600"):""),
+    c.ready?chip("可调用","bg-emerald-100 text-emerald-700"):chip("缺配置","bg-rose-100 text-rose-600"),
+  ].join(" ");
+  return `
+  <article class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm fadein min-w-0" data-card data-pid="${esc(c.id)}">
+    <div class="flex flex-wrap items-start gap-2">
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 class="font-semibold">${esc(c.name)}</h3>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 mono">${esc(c.id)}</span>
+        </div>
+        <p class="text-xs text-slate-500 mt-1 break-words">${esc(c.desc)}</p>
+      </div>
+      <div class="flex flex-wrap gap-1.5 items-start justify-end shrink-0">${badges}</div>
+    </div>
+
+    ${c.id!=="classroom-fixture"?`<div class="mt-3">
+      <p class="text-xs font-medium text-slate-500 mb-1.5">连接状态（只显示“是否已配置”）</p>
+      ${envChips(c)}
+    </div>`:""}
+
+    ${c.id!=="classroom-fixture"?`<div class="mt-3 border-t border-slate-100 pt-3">
+      <p class="text-xs font-medium text-slate-500 mb-1.5">连接参数（仅保存到服务端 <b class="mono text-slate-400">data/llm_state.json</b>）</p>
+      ${configArea(c)}
+    </div>`:`<div class="mt-3">${configArea(c)}</div>`}
+
+    <div class="mt-3 border-t border-slate-100 pt-3 flex flex-wrap items-center gap-2">
+      <button data-act="save" ${noFields?"disabled class='hidden'":""} class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium inline-flex items-center gap-1.5 hover:bg-slate-200 disabled:opacity-40"><i class="fa fa-floppy-o"></i> 保存连接</button>
+      <button data-act="test" class="px-3 py-2 rounded-lg bg-sky-600 text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-sky-700 disabled:opacity-50"><i class="fa fa-plug"></i> 测试连接</button>
+      <span class="flex-1"></span>
+      <button data-act="switch" ${active?"disabled":""} ${!active&&!canSwitch?"title='已由环境变量固定' disabled":""}
+        class="px-3 py-2 rounded-lg text-xs font-medium inline-flex items-center gap-1.5 border ${active?"border-slate-200 bg-slate-50 text-slate-400 cursor-default":"border-sky-300 text-sky-700 hover:bg-sky-50"}">
+        <i class="fa ${active?"fa-check":"fa-exchange"}"></i> ${active?"当前生效":(D.effective.env_forcing?"设为当前（被环境变量固定）":"设为当前 Provider")}</button>
+    </div>
+    <div data-res class="hidden mt-3"></div>
+  </article>`;
+}
+function renderAll(){
+  renderEnvBanner(); renderEff();
+  const box=$("#list"); box.innerHTML="";
+  $("#emptyCard").classList.toggle("hidden",(D.catalog||[]).length!==0);
+  for(const c of D.catalog||[]){ const d=document.createElement("div"); d.innerHTML=cardHtml(c); box.appendChild(d.firstElementChild); }
+}
+async function load(){
+  $("#loadCard").classList.remove("hidden"); $("#errCard").classList.add("hidden");
+  try{ D=await api("/api/llm-config"); renderAll(); }
+  catch(e){ $("#errCard").textContent="加载失败："+e.message; $("#errCard").classList.remove("hidden"); }
+  finally{ $("#loadCard").classList.add("hidden"); }
+}
+function gather(card){
+  const pid=card.dataset.pid, out={};
+  card.querySelectorAll("[data-cfg]").forEach(i=>{ out[i.dataset.cfg]=i.value; });
+  if(out.timeout!=="") out.timeout=parseInt(out.timeout||"0",10)||90;
+  return {pid, config:out};
+}
+async function persist(card){
+  const {pid,config}=gather(card);
+  if(pid==="classroom-fixture") return D;
+  D=await api("/api/llm-config","PUT",{providers:{[pid]:config}});
+  renderAll();
+  return D;
+}
+async function saveCard(btn){
+  const card=btn.closest("[data-card]");
+  setBtn(btn,true,"保存中…");
+  try{ await persist(card); toast("已保存 "+card.dataset.pid+" 连接参数","ok"); }
+  catch(e){ toast(e.message,"err"); }
+  finally{ setBtn(btn,false); }
+}
+async function testCard(btn){
+  const card=btn.closest("[data-card]"); const pid=card.dataset.pid;
+  const res=card.querySelector('[data-res]');
+  setBtn(btn,true,"测试中…");
+  res.classList.remove("hidden");
+  res.innerHTML=`<div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-400"><i class="fa fa-circle-o-notch fa-spin"></i> 先保存当前表单，再真实调用服务端连通测试…</div>`;
+  try{
+    // 先持久化表单（含新填 Key），保证“测试”检验的就是页面上这组连接参数
+    if(pid!=="classroom-fixture") await persist(card);
+    const j=await api("/api/llm-config/test","POST",{provider:pid});
+    res.innerHTML=`<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
+      <span class="inline-flex items-center gap-1 font-medium"><i class="fa fa-check-circle"></i> 连通正常（服务端真实返回）</span>
+      <div class="mt-1 text-emerald-700/90 mono leading-5">provider=${esc(j.provider)} · model=${esc(j.model)} · latency ${j.latency_ms??"-"}ms
+      ${j.echo?`<br/>echo：${esc(j.echo)}`:""}</div></div>`;
+    toast(pid+" 连接正常","ok");
+  }catch(e){
+    res.innerHTML=`<div class="rounded-xl ring-2 ring-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-xs whitespace-pre-wrap leading-5"><i class="fa fa-exclamation-triangle"></i> 测试失败：${esc(e.message)}</div>`;
+  }finally{ setBtn(btn,false); }
+}
+async function switchCard(btn){
+  const card=btn.closest("[data-card]"); const pid=card.dataset.pid;
+  if(D.effective.env_forcing||pid===D.effective.name) return;
+  setBtn(btn,true,"切换中…");
+  try{ D=await api("/api/llm-config/switch","POST",{provider:pid}); renderAll(); toast("已切换：后续 RunRecord 将记录 provider="+pid,"ok"); }
+  catch(e){ toast(e.message,"err"); load(); }
+  finally{ setBtn(btn,false); }
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");
+  if(!b) return;
+  if(b.dataset.act==="save") saveCard(b);
+  else if(b.dataset.act==="test") testCard(b);
+  else if(b.dataset.act==="switch") switchCard(b);
+});
+load();
+</script>
+</body>
+</html>

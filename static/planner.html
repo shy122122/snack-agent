@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Planner 规划器 · 零食电商客服后台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .fadein{animation:fadein .18s ease}
+  @keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-fuchsia-500 text-white grid place-items-center shadow"><i class="fa fa-map-signs text-lg"></i></div>
+    <div class="flex-1 min-w-0">
+      <h1 class="font-bold leading-tight">Planner 规划器配置</h1>
+      <p class="text-xs text-slate-500 truncate">系统提示词 + 可用能力开关 + mandatoryCapabilities + 预览校验</p>
+    </div>
+    <nav class="flex flex-wrap items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">演示</a>
+      <a href="/skills" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">技能</a>
+      <a href="/tools" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">工具</a>
+      <a href="/planner" class="px-3 py-1.5 rounded-lg bg-fuchsia-100 text-fuchsia-700 font-medium">规划器</a>
+      <a href="/models" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">模型</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-6xl mx-auto px-4 py-5 grid lg:grid-cols-5 gap-4">
+  <main class="lg:col-span-3 space-y-4 min-w-0">
+    <!-- 提示词 -->
+    <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      <h2 class="font-semibold text-sm flex flex-wrap items-center gap-2 mb-1">
+        <i class="fa fa-align-left text-fuchsia-500"></i> Planner 系统提示词
+        <span id="customBadge" class="text-[10px] px-2 py-0.5 rounded-full"></span>
+      </h2>
+      <p class="text-xs text-slate-400 mb-2">留空 = 使用内置默认提示词。保存历史会按版本归档。</p>
+      <div id="plannerState" class="hidden text-xs mb-2"></div>
+      <textarea id="prompt" rows="16" spellcheck="false" class="mono w-full border border-slate-300 rounded-xl px-3 py-2 text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-fuchsia-300"></textarea>
+      <div class="flex flex-wrap items-center gap-2 mt-3">
+        <button id="savePromptBtn" class="px-4 py-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-700 text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-50"><i class="fa fa-save"></i> 保存提示词</button>
+        <button id="useBuiltinBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-sm">恢复内置</button>
+        <button id="showHistBtn" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-sm"><i class="fa fa-history"></i> 历史(v0)</button>
+        <span id="promptMsg" class="text-xs"></span>
+      </div>
+    </section>
+
+    <!-- mandatory + 能力开关 -->
+    <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      <h2 class="font-semibold text-sm flex items-center gap-2 mb-1"><i class="fa fa-list-check text-sky-500"></i> 强制能力（mandatoryCapabilities）</h2>
+      <p class="text-xs text-slate-400 mb-2">勾选后：凡本页「预览」都会要求计划必须包含这些能力；Planner 未安排会触发校验错误。工作台常规运行不自动附加。</p>
+      <div id="mandatoryBox" class="flex flex-wrap gap-1.5"></div>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <button id="saveMandBtn" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-50"><i class="fa fa-save"></i> 保存强制能力</button>
+        <span id="mandMsg" class="text-xs self-center"></span>
+      </div>
+    </section>
+
+    <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      <h2 class="font-semibold text-sm flex items-center gap-2 mb-1"><i class="fa fa-toggle-on text-emerald-500"></i> 能力开关（影响预览与运行）</h2>
+      <p class="text-xs text-slate-400 mb-2">与「技能 / 工具」页共用同一份启用状态，即时生效。停用 risk/reply/moderation 会让多数计划校验失败（这是安全设计）。</p>
+      <div id="abilBox" class="grid md:grid-cols-2 gap-2"></div>
+    </section>
+  </main>
+
+  <!-- 预览 -->
+  <aside class="lg:col-span-2 space-y-4 min-w-0">
+    <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm lg:sticky lg:top-20">
+      <h2 class="font-semibold text-sm flex items-center gap-2 mb-2"><i class="fa fa-flask text-indigo-500"></i> 预览 Plan + 校验</h2>
+      <textarea id="previewQ" rows="2" placeholder="例如：100 元预算推荐坚果礼盒送人，算下到手价" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <button id="previewBtn" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-50"><i class="fa fa-cogs"></i> 生成预览</button>
+        <button data-q="帮我推荐几款好吃的辣条，不要选太辣的" class="chip px-2 py-1 rounded-lg text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-50">推荐</button>
+        <button data-q="100元以内坚果礼盒送人，算下到手价" class="chip px-2 py-1 rounded-lg text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-50">算价</button>
+        <button data-q="我的订单 O20260907001 发货了吗" class="chip px-2 py-1 rounded-lg text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-50">订单</button>
+        <button data-q="我中奖了要先交手续费，帮我领奖" class="chip px-2 py-1 rounded-lg text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-50">风险</button>
+      </div>
+      <div id="previewCard" class="mt-3 space-y-2"></div>
+    </section>
+  </aside>
+</div>
+
+<!-- 历史弹层 -->
+<div id="histWrap" class="hidden fixed inset-0 z-50 bg-slate-900/40 overflow-auto p-3 md:p-6">
+  <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl fadein">
+    <div class="px-5 py-3 border-b border-slate-200 flex items-center gap-2 sticky top-0 bg-white rounded-t-2xl">
+      <i class="fa fa-history text-fuchsia-500"></i><h2 class="font-semibold text-sm">提示词版本历史</h2>
+      <button aria-label="关闭" title="关闭" onclick="$('#histWrap').classList.add('hidden')" class="ml-auto w-8 h-8 rounded-lg hover:bg-slate-100"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="histBody" class="px-5 py-4 space-y-2 text-sm"></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(url,method,body){
+  const r=await fetch(url,{method:method||"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+  if(j&&j.ok===false) throw new Error(j.error||"操作失败");
+  return j;
+}
+let planner=null, allSkills=[], allTools=[];
+function toast(msg,kind){
+  const d=document.createElement("div");
+  d.className="fixed bottom-4 right-4 z-[60] px-4 py-2 rounded-xl text-sm shadow-lg text-white fadein "+(kind==="err"?"bg-rose-600":"bg-emerald-600");
+  d.innerHTML=esc(msg); document.body.appendChild(d); setTimeout(()=>d.remove(),kind==="err"?5000:2600);
+}
+function setPState(html){ const el=$("#plannerState"); el.classList.toggle("hidden",!html); el.innerHTML=html||""; }
+async function load(){
+  try{
+    const j=await api("/api/planner"); planner=j.planner; allSkills=j.skills; allTools=j.tools;
+    $("#prompt").value=planner.prompt||"";
+    renderBadge(); renderMand(); renderAbil();
+    $("#showHistBtn").innerHTML='<i class="fa fa-history"></i> 历史(v'+(planner.history||[]).length+')';
+    setPState(`<span class="text-slate-400">已保存版本 v${planner.version}${planner.updated_at?(" · "+esc(planner.updated_at)):""}${planner.actor?(" · "+esc(planner.actor)):""}</span>`);
+  }catch(e){ setPState(`<span class="text-rose-600">加载失败：${esc(e.message)}</span>`); }
+}
+function renderBadge(){
+  const c=planner.is_custom?"<span class='bg-fuchsia-100 text-fuchsia-700'>自定义（自定义优先于内置）</span>":"<span class='bg-slate-100 text-slate-500'>内置默认</span>";
+  $("#customBadge").innerHTML=c;
+}
+function renderMand(){
+  const sel=new Set(planner.mandatoryCapabilities||[]);
+  const all=[...allSkills.map(s=>({id:s.id,name:s.name,kind:"skill"})),...allTools.map(t=>({id:t.id,name:t.name,kind:"tool"}))];
+  $("#mandatoryBox").innerHTML=all.map(a=>`
+    <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] cursor-pointer select-none ${sel.has(a.id)?"bg-sky-50 border-sky-300 text-sky-700":"border-slate-200 text-slate-500 hover:bg-slate-50"}">
+      <input type="checkbox" value="${esc(a.id)}" ${sel.has(a.id)?"checked":""} class="accent-sky-600" onchange="mandToggle(this,'${esc(a.kind)}')"/>
+      <span class="mono">${esc(a.id)}</span><span class="opacity-60">${esc(a.kind)}</span>
+    </label>`).join("");
+}
+function mandToggle(cb,kind){ /* 仅视觉高亮；保存时统一读取 */
+  const box=cb.closest("label"); box.classList.toggle("bg-sky-50",cb.checked); box.classList.toggle("border-sky-300",cb.checked); box.classList.toggle("text-sky-700",cb.checked);
+  box.classList.toggle("text-slate-500",!cb.checked); box.classList.toggle("border-slate-200",!cb.checked);
+}
+function readMand(){ return [...$("#mandatoryBox").querySelectorAll("input:checked")].map(i=>i.value); }
+function renderAbil(){
+  const box=$("#abilBox"); box.innerHTML="";
+  const mk=(kind,items)=>items.map(a=>{
+    const on=a.enabled;
+    const dep=a.dep_tools?` · 依赖 ${esc(a.dep_tools.join("/"))}`:(a.artifact?` · 产出 ${esc(a.artifact)}`:"");
+    return `<div class="bg-slate-50 border ${on?"border-slate-200":"border-rose-200"} rounded-xl px-3 py-2 flex items-center gap-2">
+      <label class="inline-flex items-center gap-1.5 cursor-pointer select-none flex-1 min-w-0">
+        <input type="checkbox" ${on?"checked":""} class="accent-${kind==="skill"?"emerald":"sky"}-600" onchange="toggleAbil('${kind}','${esc(a.id)}',this.checked)"/>
+        <span class="min-w-0"><b class="text-xs">${esc(a.name)}</b> <span class="text-[10px] text-slate-400 mono">${esc(a.id)}</span>${dep?`<span class="text-[10px] text-slate-400">${dep}</span>`:""}</span>
+      </label>
+      <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0 ${on?"bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-600"}">${on?"启用":"停用"}</span>
+    </div>`;
+  }).join("");
+  box.innerHTML=`<div class="col-span-2"><p class="text-[11px] text-slate-400 mb-1.5">Skills（${allSkills.filter(s=>s.enabled).length}/${allSkills.length} 启用）</p><div class="space-y-1.5">${mk("skill",allSkills)}</div></div>
+                 <div class="col-span-2 md:col-span-1"><p class="text-[11px] text-slate-400 mb-1.5">Tools（${allTools.filter(t=>t.enabled).length}/${allTools.length} 启用）</p><div class="space-y-1.5">${mk("tool",allTools)}</div></div>`;
+}
+async function toggleAbil(kind,id,on){
+  const url=kind==="skill"?"/api/skills/"+id:"/api/tools/"+id;
+  try{ await api(url,"PUT",{enabled:on}); toast((on?"已启用 ":"已停用 ")+id,"ok"); await load(); }
+  catch(e){ toast("切换失败："+e.message,"err"); await load(); }
+}
+async function savePrompt(){
+  const btn=$("#savePromptBtn"), msg=$("#promptMsg");
+  btn.disabled=true; msg.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 保存中…';
+  try{
+    const j=await api("/api/planner","PUT",{prompt:$("#prompt").value,note:"后台提示词编辑"});
+    planner=j.planner; renderBadge(); renderMand();
+    msg.innerHTML='<span class="text-emerald-600">已保存（v'+j.planner.version+'）</span>';
+    $("#showHistBtn").innerHTML='<i class="fa fa-history"></i> 历史(v'+(j.planner.history||[]).length+')';
+    toast("Planner 提示词已保存","ok");
+  }catch(e){ msg.innerHTML='<span class="text-rose-600">保存失败：'+esc(e.message)+'</span>'; toast("保存失败："+e.message,"err"); }
+  finally{ btn.disabled=false; }
+}
+async function saveMand(){
+  const btn=$("#saveMandBtn"), msg=$("#mandMsg");
+  btn.disabled=true; msg.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 保存中…';
+  try{ const j=await api("/api/planner","PUT",{mandatoryCapabilities:readMand()});
+    planner=j.planner; msg.innerHTML='<span class="text-emerald-600">已保存强制能力：'+(j.planner.mandatoryCapabilities.length?esc(j.planner.mandatoryCapabilities.join("、")):"（无）")+'</span>';
+    toast("强制能力已保存","ok");
+  }catch(e){ msg.innerHTML='<span class="text-rose-600">'+esc(e.message)+'</span>'; }
+  finally{ btn.disabled=false; }
+}
+async function showHist(){
+  const body=$("#histBody");
+  const h=(planner.history||[]).slice().reverse();
+  if(!h.length){ body.innerHTML='<div class="text-slate-400 text-center py-6">还没有版本历史。</div>'; }
+  else{
+    body.innerHTML=h.map(x=>`
+      <details class="v bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+        <summary class="cursor-pointer px-3 py-2 flex flex-wrap items-center gap-2 text-xs hover:bg-slate-100">
+          <span class="mono px-1.5 py-0.5 rounded bg-fuchsia-100 text-fuchsia-700">v${x.version}</span>
+          <span>${esc(x.note||"（无说明）")}</span>
+          <span class="text-slate-400">${esc(x.at||"")}${x.actor?(" · "+esc(x.actor)):""}</span>
+        </summary>
+        <pre class="mono bg-slate-900 text-slate-100 px-3 py-2 text-[11px] leading-5 whitespace-pre-wrap overflow-auto max-h-72 m-2 rounded-lg">${esc(x.prompt||"(空)")}</pre>
+      </details>`).join("");
+  }
+  $("#histWrap").classList.remove("hidden");
+}
+/* 预览 */
+async function preview(){
+  const q=$("#previewQ").value.trim();
+  if(!q){ toast("请输入预览问题","err"); return; }
+  const box=$("#previewCard"), btn=$("#previewBtn");
+  box.innerHTML=`<div class="rounded-xl bg-indigo-50 text-indigo-600 px-3 py-4 text-center text-sm"><i class="fa fa-circle-o-notch fa-spin"></i> 正在让 Planner 生成计划并做静态校验…</div>`;
+  btn.disabled=true;
+  try{
+    const j=await api("/api/planner/preview","POST",{question:q,mandatoryCapabilities:readMand()});
+    if(j.ok===false){ box.innerHTML=`<div class="rounded-xl ring-2 ring-rose-200 bg-rose-50 text-rose-700 px-3 py-3 text-xs whitespace-pre-wrap">无法生成计划：${esc(j.error||"")}</div>`; return; }
+    const pl=j.plan, val=j.validation;
+    const steps=pl.steps||[];
+    const chips=steps.map(s=>`<span class="px-2 py-0.5 rounded-full text-[11px] ${s.type==="skill"?"bg-emerald-100 text-emerald-700":"bg-sky-100 text-sky-700"}"><i class="fa ${s.type==="skill"?"fa-magic":"fa-cog"}"></i> ${esc(s.id)}</span>`).join(" ");
+    const ris=pl.risk&&pl.risk.isRisky?`<span class="text-[11px] text-rose-600">⚠ 命中风险词：${esc((pl.risk.matched||[]).join("、")||"")}</span>`:"";
+    let html=`<div class="rounded-xl border border-slate-200 p-3">
+      <div class="flex flex-wrap items-center gap-2 text-xs mb-1.5"><span class="font-medium">${esc(pl.summary||"")}</span>${ris}</div>
+      <div class="flex flex-wrap gap-1 mb-1.5">${chips||"<span class='text-slate-400 text-xs'>（无步骤）</span>"}</div>
+      <div class="flex flex-wrap gap-3 text-[11px] text-slate-400">
+        <span>Skills：<b class="text-slate-600 mono">${esc((pl.selectedSkills||[]).join("/")||"-")}</b></span>
+        <span>Tools：<b class="text-slate-600 mono">${esc((pl.selectedTools||[]).join("/")||"-")}</b></span>
+        <span>mandatory：<b class="mono">${esc((pl.mandatoryCapabilities||[]).join("/")||"-")}</b></span>
+        <span>provider：<b class="mono">${esc(pl.provider||"-")}</b></span>
+      </div>
+      ${pl.reasoning?`<p class="text-[11px] text-slate-500 mt-1.5"><b>reasoning：</b>${esc(pl.reasoning)}</p>`:""}
+    </div>`;
+    // 校验结果
+    const errs=val.errors||[], warns=val.warnings||[];
+    html+=`<div class="rounded-xl border ${val.ok?"border-emerald-200 bg-emerald-50":"border-rose-200 bg-rose-50"} p-3 text-xs">
+      <p class="font-medium ${val.ok?"text-emerald-700":"text-rose-700"} mb-1"><i class="fa ${val.ok?"fa-check-circle":"fa-exclamation-triangle"}"></i> Plan Validator：${val.ok?"通过，可安全执行":"未通过（不会假装成功）"} · scenario=${esc(val.scenario||"-")}</p>
+      ${errs.length?`<ul class="space-y-1">${errs.map(e=>`<li class="${e.severity==="blocked"?"text-rose-700 bg-rose-100":"text-rose-600 bg-white"} rounded px-2 py-1"><b class="mono">[${esc(e.code)}/${esc(e.severity)}]</b> ${esc(e.detail)}</li>`).join("")}</ul>`:""}
+      ${warns.length?`<ul class="mt-1 space-y-0.5 text-amber-600">${warns.map(w=>`<li>· ${esc(w.detail||w)}</li>`).join("")}</ul>`:""}
+    </div>`;
+    box.innerHTML=html;
+  }catch(e){ box.innerHTML=`<div class="rounded-xl ring-2 ring-rose-200 bg-rose-50 text-rose-700 px-3 py-3 text-xs whitespace-pre-wrap">${esc(e.message)}</div>`; }
+  finally{ btn.disabled=false; }
+}
+document.addEventListener("click",e=>{
+  const chip=e.target.closest(".chip");
+  if(chip){ $("#previewQ").value=chip.dataset.q; preview(); }
+});
+$("#savePromptBtn").addEventListener("click",savePrompt);
+$("#useBuiltinBtn").addEventListener("click",()=>{ $("#prompt").value=planner.builtin||""; toast("已填入内置提示词，点「保存」生效","ok"); });
+$("#showHistBtn").addEventListener("click",showHist);
+$("#saveMandBtn").addEventListener("click",saveMand);
+$("#previewBtn").addEventListener("click",preview);
+load();
+</script>
+</body>
+</html>

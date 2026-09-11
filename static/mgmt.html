@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>管理后台 · 合并视图 · 零食电商客服</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden">
+<header class="bg-white border-b border-slate-200 shrink-0">
+  <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-sky-500 text-white grid place-items-center shrink-0"><i class="fa fa-th-large"></i></div>
+      <div class="min-w-0 leading-tight">
+        <h1 class="font-bold text-sm truncate">管理后台 · 合并视图</h1>
+        <p class="text-[11px] text-slate-400 truncate">四个管理页同窗切换，各自状态互不丢</p>
+      </div>
+    </div>
+    <nav class="flex flex-wrap items-center gap-1 text-sm ml-auto" id="tabs" role="tablist" aria-label="后台模块切换"></nav>
+    <a id="openNew" target="_blank" rel="noopener"
+       class="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 inline-flex items-center gap-1 shrink-0"
+       title="在新窗口打开当前模块"><i class="fa fa-external-link"></i> 独立页</a>
+  </div>
+</header>
+
+<main class="flex-1 min-h-0 relative">
+  <div id="panes" class="absolute inset-0"></div>
+</main>
+
+<script>
+const TABS=[
+  {key:"skills", label:"技能", icon:"fa-cubes", url:"/skills?embed=1"},
+  {key:"tools",  label:"工具", icon:"fa-wrench", url:"/tools?embed=1"},
+  {key:"planner",label:"规划器", icon:"fa-map-signs", url:"/planner?embed=1"},
+  {key:"models", label:"模型", icon:"fa-cube", url:"/models?embed=1"},
+];
+const tabsBox=document.getElementById("tabs"), panes=document.getElementById("panes");
+const btns={}, iframes={};
+function activeKey(){
+  const h=(location.hash||"").replace(/^#/,"").toLowerCase();
+  return TABS.find(t=>t.key===h)?h:TABS[0].key;
+}
+TABS.forEach(t=>{
+  const btn=document.createElement("button");
+  btn.type="button"; btn.role="tab"; btn.id="tab-"+t.key;
+  btn.setAttribute("aria-controls","pane-"+t.key);
+  btn.innerHTML='<i class="fa '+t.icon+' mr-1.5"></i>'+t.label;
+  btn.className="px-3 py-1.5 rounded-lg inline-flex items-center font-medium transition-colors hover:bg-slate-100";
+  btn.onclick=()=>select(t.key,true);
+  tabsBox.appendChild(btn); btns[t.key]=btn;
+
+  const fr=document.createElement("iframe");
+  fr.id="pane-"+t.key; fr.setAttribute("role","tabpanel");
+  fr.className="w-full h-full border-0 bg-slate-100"; fr.src=t.url;
+  fr.style.display="none";
+  panes.appendChild(fr); iframes[t.key]=fr;
+});
+function select(k, pushHash){
+  TABS.forEach(t=>{
+    const on=t.key===k;
+    btns[t.key].className="px-3 py-1.5 rounded-lg inline-flex items-center font-medium transition-colors "
+      +(on?"bg-slate-900 text-white shadow":"hover:bg-slate-100 text-slate-600");
+    btns[t.key].setAttribute("aria-selected",on?"true":"false");
+    iframes[t.key].style.display=on?"":"none";
+  });
+  document.getElementById("openNew").href="/"+k;
+  if(pushHash && location.hash!=="#"+k){ try{history.replaceState(null,"","#"+k);}catch(e){location.hash="#"+k;} }
+}
+select(activeKey(),false);
+window.addEventListener("hashchange",()=>select(activeKey(),false));
+</script>
+</body>
+</html>

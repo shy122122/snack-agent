@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>零食电商客服 · 演示</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<style>
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
+  .bubble{animation:b .2s ease}
+  @keyframes b{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:#94a3b8;margin:0 1px;animation:tp 1s infinite}
+  .typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+  @keyframes tp{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
+</style>
+</head>
+<body class="bg-gradient-to-b from-orange-50 to-slate-100 min-h-screen">
+<header class="bg-white/80 backdrop-blur border-b border-orange-100 sticky top-0 z-10">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-orange-500 text-white grid place-items-center shadow"><i class="fa fa-shopping-basket text-lg"></i></div>
+    <div class="flex-1"><h1 class="font-bold">零食客服 · 演示（同一 Agent 主链路）</h1></div>
+    <nav class="flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium">演示</a>
+      <a href="/console" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">总控台</a>
+    </nav>
+  </div>
+</header>
+<script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
+
+<div class="max-w-3xl mx-auto px-4 py-5">
+  <div class="flex flex-wrap gap-2 mb-4 text-xs">
+    <button data-q="帮我推荐点追剧吃的零食，预算50" class="demo-chip px-2.5 py-1 rounded-full border border-orange-200 bg-white text-orange-700 hover:bg-orange-100">推荐</button>
+    <button data-q="两袋每日坚果礼盒要多少钱？帮我算算" class="demo-chip px-2.5 py-1 rounded-full border border-sky-200 bg-white text-sky-700 hover:bg-sky-100">算价</button>
+    <button data-q="查一下我的订单物流到哪了" class="demo-chip px-2.5 py-1 rounded-full border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100">物流</button>
+    <button data-q="刷单返利先垫付，靠谱吗？" class="demo-chip px-2.5 py-1 rounded-full border border-rose-200 bg-white text-rose-700 hover:bg-rose-100">风险</button>
+    <button data-q="在吗" class="demo-chip px-2.5 py-1 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-100">寒暄</button>
+  </div>
+
+  <div id="chat" class="bg-white rounded-2xl shadow-sm border border-orange-100 p-4 h-[68vh] overflow-auto flex flex-col gap-3"></div>
+
+  <form id="composer" class="mt-3 flex gap-2">
+    <input id="q" class="flex-1 border border-orange-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300" placeholder="说点什么…（回车发送）"/>
+    <button type="submit" title="发送" class="bg-orange-500 hover:bg-orange-600 text-white rounded-xl px-5 text-sm font-medium disabled:opacity-50"><i class="fa fa-paper-plane"></i></button>
+  </form>
+</div>
+
+<script>
+const chat=$("#chat"), q=$("#q");
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function bubble(role,html){
+  const wrap=document.createElement("div");
+  wrap.className="bubble flex "+(role==="user"?"justify-end":"justify-start");
+  wrap.innerHTML=`<div class="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${role==="user"?"bg-orange-500 text-white rounded-br-sm":"bg-slate-100 text-slate-800 rounded-bl-sm"}">${html}</div>`;
+  chat.appendChild(wrap); chat.scrollTop=chat.scrollHeight;
+  return wrap;
+}
+function typingBubble(){
+  const w=document.createElement("div");
+  w.className="bubble flex justify-start";
+  w.innerHTML=`<div class="typing rounded-2xl bg-slate-100 px-4 py-3"><span></span><span></span><span></span></div>`;
+  chat.appendChild(w); chat.scrollTop=chat.scrollHeight; return w;
+}
+function userMsg(t){ bubble("user",esc(t)); }
+
+document.querySelectorAll(".demo-chip").forEach(b=>b.onclick=()=>{ q.value=b.dataset.q; q.focus(); });
+
+let lastBot=null;
+async function send(t){
+  userMsg(t);
+  const tdot=typingBubble();
+  try{
+    const res=await fetch("/api/agent/run",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({question:t,source:"demo",stream:true})});
+    const reader=res.body.getReader(), dec=new TextDecoder("utf-8");
+    let buf="", steps=0;
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true}).replace(/\r\n/g,"\n");
+      let i;
+      while((i=buf.indexOf("\n\n"))>=0){ const blk=buf.slice(0,i); buf=buf.slice(i+2); if(blk.trim()) handle(blk); }
+    }
+    if(buf.trim()) handle(buf);
+    function handle(blk){
+      let ev="message", data="";
+      for(const ln of blk.split("\n")){
+        if(ln.startsWith("event:")) ev=ln.slice(6).trim();
+        else if(ln.startsWith("data:")) data+=(data?"\n":"")+ln.slice(5).replace(/^ /,"");
+      }
+      if(ev==="step") steps++;
+      if(ev==="plan"){ tdot.querySelector(".typing").style.display="none"; bubble("bot",`<i class="fa fa-cog fa-spin text-orange-400"></i> 已规划 ${(JSON.parse(data).steps||[]).length} 步，正在执行…`); }
+      if(ev==="reply"){
+        const r=JSON.parse(data);
+        const modeTxt={pass:"已过审","risk_guard":"风险守卫已过审",blocked:"已拦截",regenerated:"复审通过"}[r.mode]||"";
+        tdot.remove();
+        const html=esc(r.text||"(空)")+(modeTxt?`<div class="mt-1 text-[11px] text-slate-400">风控：${modeTxt}</div>`:"");
+        const rw=bubble("bot",html);
+        lastBot=rw;
+        if(r.blocked) rw.querySelector("div").className+=" border border-rose-200 text-slate-500";
+      }
+      if(ev==="risk"){
+        const r=JSON.parse(data);
+        if(r&&r.isRisky) bubble("bot",`<span class="text-rose-600 text-xs"><i class="fa fa-shield"></i> 已识别风险（${esc(r.riskType||"疑似诈骗")}），不执行任何销售/收款操作</span>`);
+      }
+      if(ev==="error"){ tdot.remove(); bubble("bot",`<span class="text-rose-500"><i class="fa fa-exclamation-triangle"></i> ${esc((JSON.parse(data).message)||"出错")}</span>`); }
+      if(ev==="done"){ const d=JSON.parse(data); if(lastBot){ const a=document.createElement("a"); a.className="text-[11px] text-orange-500 underline mt-2 block"; a.href="/runs/"+d.runId; a.textContent="查看运行 Trace #"+d.runId; lastBot.querySelector("div").appendChild(a); } }
+    }
+  }catch(e){ tdot.remove(); bubble("bot",`<span class="text-rose-500">请求失败：${esc(e)}</span>`); }
+}
+
+$("#composer").addEventListener("submit",ev=>{ ev.preventDefault(); const t=q.value.trim(); if(!t) return; q.value=""; send(t); });
+bubble("bot","您好！我是零食电商客服（演示模式）。随便聊聊选品、价格、订单物流，或试试上面的场景。");
+</script>
+</body>
+</html>
