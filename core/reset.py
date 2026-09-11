@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""课堂重置（classroom reset）：把可编辑的演示状态恢复到「已知初始态」。
+"""演示重置（demo reset）：把可编辑的演示状态恢复到「已知初始态」。
 
 恢复范围（严格按工程化需求 2 枚举，不越界也不含糊）：
 - 评测集      data/eval_cases.json     → 仅保留 9 个种子用例（eval.SEED_CASES）
@@ -17,7 +17,7 @@ ops_ratings / ops_ab_tests、planner_config / tool_state / llm_state / config.js
 重复执行结果一致（幂等）：第二次落盘文件与第一次完全一致。
 
 调用方安全约定（本模块不自行判断模式，由上层决定）：
-- HTTP 端点：仅演示模式（classroom-fixture）放行，且存在 queued/running 批次时拒绝（409）；
+- HTTP 端点：仅演示模式（demo-fixture）放行，且存在 queued/running 批次时拒绝（409）；
 - CLI：默认仅演示模式放行，--force 可覆盖（操作者自担，用于重启前清理陈旧 running 批次）。
 """
 from __future__ import annotations
@@ -60,12 +60,12 @@ def _entry_count(path):
     return 0
 
 
-def reset_classroom(*, actor: str = ""):
-    """执行课堂重置并返回 {ok, actor, restored, untouched} 摘要。
+def reset_demo(*, actor: str = ""):
+    """执行演示重置并返回 {ok, actor, restored, untouched} 摘要。
 
     幂等：任何状态执行一次后达到已知初始态，再执行不改变任何文件内容。
     """
-    summary = {"ok": True, "actor": actor, "method": "classroom-reset",
+    summary = {"ok": True, "actor": actor, "method": "demo-reset",
                "restored": [], "untouched": [name for name, _ in UNTOUCHED]}
 
     # 1) 评测集 → 仅种子

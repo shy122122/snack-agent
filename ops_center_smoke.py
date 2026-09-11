@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""运营中心(/ops)离线验收脚本（test_client，不联网，classroom-fixture）。
+"""运营中心(/ops)离线验收脚本（test_client，不联网，demo-fixture）。
 
 覆盖本段验收 1-9：
 1) 从 Run 创建一条低分评分（自动进坏例）
@@ -29,7 +29,7 @@ try:
 except Exception:
     pass
 
-os.environ["SNACK_LLM_PROVIDER"] = "classroom-fixture"  # 必须在 import app 之前
+os.environ["SNACK_LLM_PROVIDER"] = "demo-fixture"  # 必须在 import app 之前
 
 sys.path.insert(0, ".")
 ROOT = Path(__file__).resolve().parent

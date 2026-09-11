@@ -95,7 +95,7 @@ function renderEff(){
       <div class="flex-1 min-w-0">
         <div class="flex flex-wrap items-center gap-2">
           <h2 class="font-bold">当前生效 Provider</h2>
-          ${e.demo?chip("课堂稳定演示（确定性 · 不联网）","bg-emerald-100 text-emerald-700"):""}
+          ${e.demo?chip("稳定演示（确定性 · 不联网）","bg-emerald-100 text-emerald-700"):""}
           ${e.ready?chip("已可调用","bg-emerald-100 text-emerald-700"):chip("缺少必要配置","bg-rose-100 text-rose-600")}
         </div>
         <p class="mt-1 font-semibold text-slate-900">${esc(effName(e.name))} <span class="mono text-xs text-slate-400">${esc(e.name)}</span></p>
@@ -106,19 +106,19 @@ function renderEff(){
       <div class="text-right text-xs text-slate-400 shrink-0">生效优先级<br/><b class="mono">环境变量 &gt; 后台已选 &gt; 默认</b></div>
     </div>
     ${e.demo?`<div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
-      <div class="text-xs text-slate-500 mr-auto max-w-xl"><i class="fa fa-eraser mr-1 text-rose-400"></i>课堂重置：把 <b>评测集 / Skills / Skill 版本 / 评测批次 / 运营标注 / 改进建议</b> 恢复到「已知初始态」（幂等；商品 / 订单 / 密钥等基础数据不动）。</div>
-      <button onclick="classroomReset()" class="px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium shadow-sm"><i class="fa fa-refresh mr-1"></i>执行课堂重置</button>
+      <div class="text-xs text-slate-500 mr-auto max-w-xl"><i class="fa fa-eraser mr-1 text-rose-400"></i>演示重置：把 <b>评测集 / Skills / Skill 版本 / 评测批次 / 运营标注 / 改进建议</b> 恢复到「已知初始态」（幂等；商品 / 订单 / 密钥等基础数据不动）。</div>
+      <button onclick="demoReset()" class="px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium shadow-sm"><i class="fa fa-refresh mr-1"></i>执行演示重置</button>
     </div>`:""}
   </div>`;
 }
 
-async function classroomReset(){
+async function demoReset(){
   const lines=["评测集(仅9种子)","Skills(默认6)","Skill 版本快照","评测批次","运营标注","改进建议"];
-  if(!confirm("确认执行课堂重置？\n将恢复：\n  · "+lines.join("\n  · ")+"\n商品/订单/密钥等不动。此操作不可撤销。")) return;
+  if(!confirm("确认执行演示重置？\n将恢复：\n  · "+lines.join("\n  · ")+"\n商品/订单/密钥等不动。此操作不可撤销。")) return;
   try{
-    const j=await api("/api/system/classroom-reset","POST");
+    const j=await api("/api/system/demo-reset","POST");
     if(!j.ok){ if(j.activeBatchId) toast("有批次运行中，请先取消/等待："+j.activeBatchId,"err"); else toast(j.error||"重置失败","err"); return; }
-    toast("课堂重置完成","ok");
+    toast("演示重置完成","ok");
     await load();
   }catch(e){ toast("请求失败："+e.message,"err"); }
 }
@@ -191,7 +191,7 @@ const FORM_DEFS={
   ],
 };
 function configArea(c){
-  if(c.id==="classroom-fixture")
+  if(c.id==="demo-fixture")
     return `<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2.5 text-xs text-emerald-800 leading-5">
       <b><i class="fa fa-flask"></i> 无需配置</b> —— 确定性离线演示 Provider：不联网、不需 Key/Bot，任何问题按剧本稳定返回。
       真实接入后请把 Provider 切回 OpenAI 兼容接口或 Coze。</div>`;
@@ -205,9 +205,9 @@ function effActive(c){ return D.effective.name===c.id; }
 function cardHtml(c){
   const active=effActive(c);
   const canSwitch=!D.effective.env_forcing && !active;
-  const noFields=(c.id==="classroom-fixture");
+  const noFields=(c.id==="demo-fixture");
   const badges=[
-    c.stable_demo?chip("课堂稳定演示","bg-emerald-100 text-emerald-700"):"",
+    c.stable_demo?chip("稳定演示","bg-emerald-100 text-emerald-700"):"",
     active?chip("当前生效","bg-indigo-600 text-white"):(c.selected?chip("后台已选","bg-slate-200 text-slate-600"):""),
     c.ready?chip("可调用","bg-emerald-100 text-emerald-700"):chip("缺配置","bg-rose-100 text-rose-600"),
   ].join(" ");
@@ -224,12 +224,12 @@ function cardHtml(c){
       <div class="flex flex-wrap gap-1.5 items-start justify-end shrink-0">${badges}</div>
     </div>
 
-    ${c.id!=="classroom-fixture"?`<div class="mt-3">
+    ${c.id!=="demo-fixture"?`<div class="mt-3">
       <p class="text-xs font-medium text-slate-500 mb-1.5">连接状态（只显示“是否已配置”）</p>
       ${envChips(c)}
     </div>`:""}
 
-    ${c.id!=="classroom-fixture"?`<div class="mt-3 border-t border-slate-100 pt-3">
+    ${c.id!=="demo-fixture"?`<div class="mt-3 border-t border-slate-100 pt-3">
       <p class="text-xs font-medium text-slate-500 mb-1.5">连接参数（仅保存到服务端 <b class="mono text-slate-400">data/llm_state.json</b>）</p>
       ${configArea(c)}
     </div>`:`<div class="mt-3">${configArea(c)}</div>`}
@@ -265,7 +265,7 @@ function gather(card){
 }
 async function persist(card){
   const {pid,config}=gather(card);
-  if(pid==="classroom-fixture") return D;
+  if(pid==="demo-fixture") return D;
   D=await api("/api/llm-config","PUT",{providers:{[pid]:config}});
   renderAll();
   return D;
@@ -285,7 +285,7 @@ async function testCard(btn){
   res.innerHTML=`<div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-400"><i class="fa fa-circle-o-notch fa-spin"></i> 先保存当前表单，再真实调用服务端连通测试…</div>`;
   try{
     // 先持久化表单（含新填 Key），保证“测试”检验的就是页面上这组连接参数
-    if(pid!=="classroom-fixture") await persist(card);
+    if(pid!=="demo-fixture") await persist(card);
     const j=await api("/api/llm-config/test","POST",{provider:pid});
     res.innerHTML=`<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
       <span class="inline-flex items-center gap-1 font-medium"><i class="fa fa-check-circle"></i> 连通正常（服务端真实返回）</span>

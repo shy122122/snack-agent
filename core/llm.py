@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""大模型统一出口层：把调用委托给当前 Provider（openai-compatible / coze / classroom-fixture）。
+"""大模型统一出口层：把调用委托给当前 Provider（openai-compatible / coze / demo-fixture）。
 
 本文件保持对外 API 不变（call_llm / extract_json / estimate_cost / LLMError），
 真正的网络 / 剧本实现位于 core/providers.py。返回统一增加 provider 键供 RunRecord 记录。

@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""LLM Provider 抽象：openai-compatible / coze / classroom-fixture。
+"""LLM Provider 抽象：openai-compatible / coze / demo-fixture。
 
 统一接口（engine/llm 之上的唯一出口后面的一层）：
     chat(messages, *, json_mode, model, temperature, max_tokens, timeout,
          provider_hint=None)
         -> {content, usage, model, provider, latency_ms, cost_yuan}
 缺必要配置时抛 LLMError（结构化中文错误，含如何切演示模式的提示）。
-选择：环境变量 SNACK_LLM_PROVIDER ∈ {openai-compatible(默认), coze, classroom-fixture}。
+选择：环境变量 SNACK_LLM_PROVIDER ∈ {openai-compatible(默认), coze, demo-fixture}。
 无静默降级：真实 provider 缺 key 直接报错，绝不悄悄回落到演示模式。
 
 说明（交付差异）：
 - coze-coding-dev-sdk 是 Node SDK；本 Python 宿主无法 import，故以等价 Coze HTTP
   v3 chat 接口实现同一 chat() 契约。
-- classroom-fixture 为确定性演示 Provider：provider/model 恒为
-  classroom-fixture/fixture-demo，输出取自"剧本"，但一律经由与真实模型完全相同的
+- demo-fixture 为确定性演示 Provider：provider/model 恒为
+  demo-fixture/fixture-demo，输出取自"剧本"，但一律经由与真实模型完全相同的
   plan → execute → 风险审计 → RunRecord 链路，绝不直接把 PASS/FAIL 写进结果。
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ class LLMError(Exception):
     pass
 
 
-_DEMO_HINT = '（若需离线演示，请设置环境变量 SNACK_LLM_PROVIDER=classroom-fixture）'
+_DEMO_HINT = '（若需离线演示，请设置环境变量 SNACK_LLM_PROVIDER=demo-fixture）'
 
 
 def _est_cost(prompt_tokens, completion_tokens) -> float:
@@ -74,9 +74,9 @@ PROVIDER_CATALOG = [
         "needs": {"api_key": True, "bot_id": True},
     },
     {
-        "id": "classroom-fixture",
-        "name": "课堂演示剧本",
-        "desc": "确定性离线演示 Provider：不联网、无需 Key，按问题类型返回稳定剧本；仍完整走 Planner→校验→执行→风控→RunRecord 链路，适合课堂/验收演示。",
+        "id": "demo-fixture",
+        "name": "演示剧本",
+        "desc": "确定性离线演示 Provider：不联网、无需 Key，按问题类型返回稳定剧本；仍完整走 Planner→校验→执行→风控→RunRecord 链路，适合演示/验收。",
         "stable_demo": True,
         "default_model": "fixture-demo",
         "models": ["fixture-demo"],
@@ -88,11 +88,11 @@ PROVIDER_CATALOG = [
 def _provider_cls(name: str):
     """惰性解析 Provider 类（模块级表会在类定义前求值而 NameError，故放函数里运行时解析）。"""
     n = (name or "").strip().lower()
-    alias = {"openai": "openai-compatible", "fixture": "classroom-fixture"}
+    alias = {"openai": "openai-compatible", "fixture": "demo-fixture"}
     n = alias.get(n, n)
     return {"openai-compatible": OpenAICompatibleProvider,
             "coze": CozeProvider,
-            "classroom-fixture": ClassroomFixtureProvider}.get(n)
+            "demo-fixture": DemoFixtureProvider}.get(n)
 
 
 def effective_provider_name() -> str:
@@ -115,7 +115,7 @@ def resolve_provider():
     name = effective_provider_name()
     cls = _provider_cls(name)
     if not cls:
-        raise LLMError(f"未知的 Provider：{name}（支持：openai-compatible / coze / classroom-fixture）")
+        raise LLMError(f"未知的 Provider：{name}（支持：openai-compatible / coze / demo-fixture）")
     return cls()
 
 
@@ -179,7 +179,7 @@ def provider_catalog_status() -> list:
 
 
 def _provider_ready(pid: str) -> bool:
-    if pid == "classroom-fixture":
+    if pid == "demo-fixture":
         return True
     if pid == "coze":
         saved = _saved_config(pid)
@@ -415,15 +415,15 @@ class CozeProvider:
         }
 
 
-# ============================================================ classroom-fixture
-class ClassroomFixtureProvider:
+# ============================================================ demo-fixture
+class DemoFixtureProvider:
     """确定性演示 Provider：把问题映射到剧本，为 Planner/Skill 产出稳定输出。
 
     关键约束：fixture 只负责『扮演大模型返回内容』，其输出必须与真实模型同一套 schema，
     仍由 engine（plan/execute/_finalize/风控审计）+ runner（validator/RunRecord）完整编排，
     绝不直接写 PASS/FAIL 进结果。
     """
-    name = "classroom-fixture"
+    name = "demo-fixture"
 
     def chat(self, messages, *, json_mode=False, model=None, temperature=None,
              max_tokens=None, timeout=None, provider_hint=None):

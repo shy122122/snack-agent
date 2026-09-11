@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""课堂重置 CLI —— pnpm classroom:reset 的 Python 等价物。
+"""演示重置 CLI —— pnpm demo:reset 的 Python 等价物。
 
 用法：
-    python classroom_reset.py              # 演示模式（SNACK_LLM_PROVIDER=classroom-fixture）下直接重置
-    python classroom_reset.py --force      # 真实 Provider / 存在运行中批次时强制重置（自担风险）
+    python demo_reset.py              # 演示模式（SNACK_LLM_PROVIDER=demo-fixture）下直接重置
+    python demo_reset.py --force      # 真实 Provider / 存在运行中批次时强制重置（自担风险）
 
 恢复内容（到「已知初始态」，幂等，可重复执行）：
     评测集(仅 9 种子) / Skills(默认6) / Skill 版本(空) / 评测批次(空) / 运营标注(空) / 改进建议(空)
@@ -37,9 +37,9 @@ def main():
     from core import eval_batch as eb, providers, reset
 
     mode = providers.effective_provider_name()
-    if mode != "classroom-fixture" and not force:
-        print(f"[拒绝] 当前 Provider={mode}（非演示模式）。课堂重置只允许在演示模式执行，"
-              f"请用 SNACK_LLM_PROVIDER=classroom-fixture 启动；若确需在真实模式清空请加 --force。", file=sys.stderr)
+    if mode != "demo-fixture" and not force:
+        print(f"[拒绝] 当前 Provider={mode}（非演示模式）。演示重置只允许在演示模式执行，"
+              f"请用 SNACK_LLM_PROVIDER=demo-fixture 启动；若确需在真实模式清空请加 --force。", file=sys.stderr)
         return 2
 
     act = eb.active_batch_id()
@@ -48,8 +48,8 @@ def main():
               f"若是重启前遗留的陈旧批次，可加 --force（会同时清空该记录）。", file=sys.stderr)
         return 2
 
-    summary = reset.reset_classroom(actor="cli")
-    print("课堂重置完成（幂等 · 原子写入）")
+    summary = reset.reset_demo(actor="cli")
+    print("演示重置完成（幂等 · 原子写入）")
     for item in summary["restored"]:
         print(f"  · {item['label']:6s} {item['file']:22s} {item['from']:>3d} → {item['to']:>3d}   {item['note']}")
     print(f"  未触碰 {len(summary['untouched'])} 项业务/配置数据（含商品/订单/密钥）")

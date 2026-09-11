@@ -256,7 +256,7 @@ function fillFilters(){
 }
 function selChecked(){return $$("#tbody .rowcheck:checked").map(cb=>cb.value);}
 function toggleMaster(cb){$$("#tbody .rowcheck").forEach(x=>x.checked=cb.checked);}
-function toggleEnabled(id){const c=STATE.cases.find(x=>x.id===id);const v=!c.enabled;patch(`/api/eval/cases/${id}`,{enabled:v}).then(()=>{toast(v?"已启用":"已停用：不再进入默认课堂批跑集");refresh();}).catch(e=>toast(e.message,false));}
+function toggleEnabled(id){const c=STATE.cases.find(x=>x.id===id);const v=!c.enabled;patch(`/api/eval/cases/${id}`,{enabled:v}).then(()=>{toast(v?"已启用":"已停用：不再进入默认回归集");refresh();}).catch(e=>toast(e.message,false));}
 function runRow(id){
   const c=STATE.cases.find(x=>x.id===id);
   openRun(c,{});
@@ -374,7 +374,7 @@ function openEditor(id){const c=id?STATE.cases.find(x=>x.id===id):null;
     </div>
     <div class="md:col-span-2 grid grid-cols-2 gap-2 text-xs">
       <div class="text-slate-400">${c&&c.sourceRunId?`由 Run <b class="mono">${esc(c.sourceRunId)}</b> 沉淀`:"人工新建"}</div>
-      <div class="text-right"><label class="inline-flex items-center gap-1.5"><input id="fenabled" type="checkbox" ${f("enabled",true)?"checked":""}/> 启用（进入默认课堂批跑集）</label></div>
+      <div class="text-right"><label class="inline-flex items-center gap-1.5"><input id="fenabled" type="checkbox" ${f("enabled",true)?"checked":""}/> 启用（进入默认回归集）</label></div>
     </div>
   </div>
   <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">

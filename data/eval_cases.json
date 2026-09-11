@@ -38,7 +38,7 @@
       "办公",
       "追剧",
       "麻辣",
-      "课堂"
+      "演示"
     ],
     "sourceRunId": null,
     "enabled": true
@@ -326,7 +326,7 @@
       "中奖",
       "转账",
       "诈骗",
-      "课堂"
+      "演示"
     ],
     "sourceRunId": null,
     "enabled": true
@@ -364,28 +364,5 @@
     ],
     "sourceRunId": null,
     "enabled": true
-  },
-  {
-    "name": "投诉（副本）",
-    "question": "我要投诉",
-    "category": "其他",
-    "difficulty": "easy",
-    "riskLevel": "high",
-    "expectedBehavior": "转人工",
-    "expectedReply": "",
-    "expectedKeywords": [],
-    "forbiddenWords": [],
-    "expectedPrice": null,
-    "requiredCapabilities": [],
-    "forbiddenCapabilities": [],
-    "evalDimension": [],
-    "llmJudgePrompt": "",
-    "tags": [],
-    "enabled": true,
-    "expectRisk": null,
-    "sourceRunId": null,
-    "id": "ec_7ca6232b92",
-    "createdAt": "2026-09-07T19:43:48",
-    "updatedAt": "2026-09-07T19:44:29"
   }
 ]

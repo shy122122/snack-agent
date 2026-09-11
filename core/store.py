@@ -528,7 +528,7 @@ _LLM_PROVIDER_DEFAULTS = {
                           "api_key": "", "timeout": 90},
     "coze": {"base_url": "https://api.coze.com", "bot_id": "", "model": "",
              "api_key": "", "timeout": 120},
-    "classroom-fixture": {},
+    "demo-fixture": {},
 }
 
 

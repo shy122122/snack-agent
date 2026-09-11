@@ -87,7 +87,7 @@ def main():
     g = json_of(c.get("/api/llm-config"))
     ids = [x["id"] for x in g.get("catalog", [])]
     check("catalog 含 3 类 Provider", len(ids) == 3 and
-          {"openai-compatible", "coze", "classroom-fixture"} <= set(ids), ",".join(ids))
+          {"openai-compatible", "coze", "demo-fixture"} <= set(ids), ",".join(ids))
     eff = g.get("effective") or {}
     check("effective 含 name/ready/env_forcing 字段", "name" in eff and "ready" in eff and "env_forcing" in eff)
     check("catalog 各项含 env 状态且为布尔", all(
@@ -130,36 +130,36 @@ def main():
     check("Tool 测试带 latency_ms", "latency_ms" in tj)
 
     print("\n== 验收6：Provider 切换影响后续 RunRecord ==")
-    if forced and forced not in ("fixture", "classroom-fixture"):
+    if forced and forced not in ("fixture", "demo-fixture"):
         check("env 固定(openai)下切换不生效——跳过联网运行", True, f"当前 env 固定 {forced}")
     else:
         # 断言「env 权威」：写 llm_state 切到 fixture 后，若 env 固定则 effective 不变
-        sw = json_of(c.post("/api/llm-config/switch", json={"provider": "classroom-fixture"}))
+        sw = json_of(c.post("/api/llm-config/switch", json={"provider": "demo-fixture"}))
         eff_after = (sw.get("effective") or {}).get("name")
         fstate = store.load_llm_state().get("provider")
         if forced:
             check("env 权威：切换被忽略，effective 仍为 env 指定", eff_after == forced, f"effective={eff_after}")
         else:
-            check("switch 成功：effective=classroom-fixture", eff_after == "classroom-fixture", eff_after)
-            check("switch 已写盘 data/llm_state.json", fstate == "classroom-fixture", fstate)
+            check("switch 成功：effective=demo-fixture", eff_after == "demo-fixture", eff_after)
+            check("switch 已写盘 data/llm_state.json", fstate == "demo-fixture", fstate)
             rec = runner.run_run("100元以内买坚果礼盒送人，帮我算一下到手价", source="admin_smoke")
-            check("切换后 RunRecord.provider=classroom-fixture（fixture 影响后续运行）",
-                  rec.get("provider") == "classroom-fixture", rec.get("provider"))
+            check("切换后 RunRecord.provider=demo-fixture（fixture 影响后续运行）",
+                  rec.get("provider") == "demo-fixture", rec.get("provider"))
             check("切换后 RunRecord 无报错且走主链路", rec.get("status") == "ok", rec.get("status"))
 
     print("\n== 验收7：测试连接 —— 成功(fixture) / 失败结构化中文错(coze) ==")
-    ok_t = json_of(c.post("/api/llm-config/test", json={"provider": "classroom-fixture"}))
-    check("fixture 连通成功", ok_t.get("ok") is True and ok_t.get("provider") == "classroom-fixture")
+    ok_t = json_of(c.post("/api/llm-config/test", json={"provider": "demo-fixture"}))
+    check("fixture 连通成功", ok_t.get("ok") is True and ok_t.get("provider") == "demo-fixture")
     bad_t = json_of(c.post("/api/llm-config/test", json={"provider": "coze"}))
     check("coze 未配置 → 结构化中文错误(非 HTTP 500)",
           bad_t.get("ok") is False and bool(bad_t.get("error")) and ("Key" in bad_t.get("error") or "Coze" in bad_t.get("error")),
           (bad_t.get("error") or "")[:60])
 
     print("\n== 验收8：Planner 预览随启用状态改变（需 fixture 确定性规划）==")
-    if not forced or forced in ("fixture", "classroom-fixture"):
-        need_fixture = eff_after != "classroom-fixture"
+    if not forced or forced in ("fixture", "demo-fixture"):
+        need_fixture = eff_after != "demo-fixture"
         if need_fixture:
-            json_of(c.post("/api/llm-config/switch", json={"provider": "classroom-fixture"}))
+            json_of(c.post("/api/llm-config/switch", json={"provider": "demo-fixture"}))
         Q = "100元以内买坚果礼盒送人，帮我算一下到手价"
         pre1 = json_of(c.post("/api/planner/preview", json={"question": Q}))
         v1 = pre1.get("validation") or {}

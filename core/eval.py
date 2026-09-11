@@ -329,7 +329,7 @@ SEED_CASES = [
      "forbiddenWords": [], "expectedPrice": None,
      "requiredCapabilities": ["query_products", "compute_price"], "forbiddenCapabilities": [],
      "evalDimension": ["price_honesty", "completeness"], "expectRisk": False,
-     "tags": ["办公", "追剧", "麻辣", "课堂"], "sourceRunId": None, "enabled": True},
+     "tags": ["办公", "追剧", "麻辣", "演示"], "sourceRunId": None, "enabled": True},
 
     {"id": "ec_seed_gift_box", "category": "推荐", "difficulty": "easy", "riskLevel": "low",
      "name": "新客送礼礼盒 · 预算内组合",
@@ -402,7 +402,7 @@ SEED_CASES = [
      "forbiddenWords": [], "expectedPrice": None,
      "requiredCapabilities": ["risk"], "forbiddenCapabilities": ["query_products", "compute_price", "query_coupons", "query_activities"],
      "evalDimension": ["risk_response", "reply_safety"], "expectRisk": True,
-     "tags": ["中奖", "转账", "诈骗", "课堂"], "sourceRunId": None, "enabled": True},
+     "tags": ["中奖", "转账", "诈骗", "演示"], "sourceRunId": None, "enabled": True},
 
     {"id": "ec_seed_ambiguous", "category": "模糊需求", "difficulty": "easy", "riskLevel": "low",
      "name": "模糊需求 · 澄清引导",

@@ -131,7 +131,7 @@ def ops_page():
 
 @app.get("/eval")
 def eval_page():
-    """评测中心：评测集管理 + 单条测试(走真实主链路) + 结果展开 + 课堂批跑。"""
+    """评测中心：评测集管理 + 单条测试(走真实主链路) + 结果展开 + 回归批跑。"""
     return send_from_directory(ROOT, "static/eval.html")
 
 
@@ -360,7 +360,7 @@ def agent_abilities():
     disabled_tools = [m["id"] for m in tools.META if not store.tool_enabled(m["id"])]
     eff = providers.effective_provider_name()
     cfgp = providers.config_for(eff)
-    model = ("fixture-demo" if eff == "classroom-fixture"
+    model = ("fixture-demo" if eff == "demo-fixture"
              else (cfgp.get("bot_id") or cfgp.get("model")) if eff == "coze" else cfgp.get("model"))
     return jsonify({
         "ok": True,
@@ -384,11 +384,11 @@ def provider_status():
     """当前生效的 LLM Provider 状态（页面顶部徽标 / 冒烟脚本用）。
     跟随 env SNACK_LLM_PROVIDER 权威选择；未设时反映后台 /models 已切换的 provider(llm_state)。"""
     name = providers.effective_provider_name()
-    demo = name == "classroom-fixture"
+    demo = name == "demo-fixture"
     ready = providers._provider_ready(name)
     labels = {"openai-compatible": "真实模型（OpenAI 兼容）",
               "coze": "真实模型（Coze Bot）",
-              "classroom-fixture": "演示模式（离线确定性剧本）"}
+              "demo-fixture": "演示模式（离线确定性剧本）"}
     if demo:
         model = "fixture-demo"
     else:
@@ -397,9 +397,9 @@ def provider_status():
     hint = None
     if not ready:
         if name == "coze":
-            hint = "未配置 COZE_API_KEY / COZE_BOT_ID，请在「模型设置」填写或设置 SNACK_LLM_PROVIDER=classroom-fixture 切演示"
+            hint = "未配置 COZE_API_KEY / COZE_BOT_ID，请在「模型设置」填写或设置 SNACK_LLM_PROVIDER=demo-fixture 切演示"
         else:
-            hint = "未配置 API Key：请在「模型设置」填写，或设置 SNACK_LLM_PROVIDER=classroom-fixture 切演示"
+            hint = "未配置 API Key：请在「模型设置」填写，或设置 SNACK_LLM_PROVIDER=demo-fixture 切演示"
     return jsonify({"ok": True, "provider": name, "label": labels.get(name, name),
                     "model": model, "demo": demo, "llm_ready": ready, "hint": hint,
                     "stable_demo": demo})
@@ -583,7 +583,7 @@ def _llm_config_payload():
         "ok": True,
         "effective": {
             "name": eff,
-            "demo": eff == "classroom-fixture",
+            "demo": eff == "demo-fixture",
             "ready": P._provider_ready(eff),
             "env_forcing": bool(env_forced),
             "env_provider": env_forced,
@@ -713,7 +713,7 @@ def run_explain():
     # 有真实 Provider Key 时可选润色；失败/无 key 一律回落确定性解释器
     polished = text
     name = (os.environ.get("SNACK_LLM_PROVIDER") or "openai-compatible").strip().lower()
-    if name not in ("classroom-fixture", "fixture"):
+    if name not in ("demo-fixture", "fixture"):
         try:
             from core import llm as llm_mod
             resp = llm_mod.call_llm([{"role": "system", "content": "你是技术解释助手，把下面的运行记录解释用通顺中文润色成 3-6 句，不要编造事实，直接输出润色文本。"},
@@ -1119,7 +1119,7 @@ def eval_run_case(cid):
 
 @app.post("/api/eval/batch-run")
 def eval_batch_run():
-    """课堂/回归批跑：逐条走真实主链路评分。默认跑全部 enabled（<=20 条）。"""
+    """回归批跑：逐条走真实主链路评分。默认跑全部 enabled（<=20 条）。"""
     b = _body()
     case_ids = b.get("caseIds") or []
     all_cases, _total = eval_mod.list_cases(limit=2000)
@@ -1220,22 +1220,22 @@ def eval_batch_cancel(bid):
         return _fail(str(e), 400)
 
 
-# ---------------------------------------------------------------- 课堂重置（受控）
-@app.post("/api/system/classroom-reset")
-def classroom_reset_api():
+# ---------------------------------------------------------------- 演示重置（受控）
+@app.post("/api/system/demo-reset")
+def demo_reset_api():
     """恢复演示态到「已知初始态」（仅演示模式放行；有运行中批次拒绝）。"""
-    if providers.effective_provider_name() != "classroom-fixture":
-        return _fail("课堂重置仅允许在演示模式（SNACK_LLM_PROVIDER=classroom-fixture）下执行；"
+    if providers.effective_provider_name() != "demo-fixture":
+        return _fail("演示重置仅允许在演示模式（SNACK_LLM_PROVIDER=demo-fixture）下执行；"
                      f"当前为真实 Provider={providers.effective_provider_name()}，已拒绝以防误清。", 403)
     act = eval_batch_mod.active_batch_id()
     if act:
         return jsonify({"ok": False,
-                        "error": f"评测批次仍在运行（{act}），请先取消或等待完成后再执行课堂重置",
+                        "error": f"评测批次仍在运行（{act}），请先取消或等待完成后再执行演示重置",
                         "activeBatchId": act}), 409
     try:
-        summary = reset_mod.reset_classroom(actor="api")
+        summary = reset_mod.reset_demo(actor="api")
     except Exception as e:
-        return _fail(f"课堂重置失败：{e}")
+        return _fail(f"演示重置失败：{e}")
     return jsonify(summary)
 
 
@@ -1243,7 +1243,7 @@ if __name__ == "__main__":
     cfg = store.load_config()
     host = cfg["app"].get("host", "127.0.0.1")
     port = int(cfg["app"].get("port", 8000))
-    demo = (os.environ.get("SNACK_LLM_PROVIDER") or "").strip().lower() in ("classroom-fixture", "fixture")
+    demo = (os.environ.get("SNACK_LLM_PROVIDER") or "").strip().lower() in ("demo-fixture", "fixture")
     print("\n==============================================")
     print("  零食电商客服 Agent 主链路平台 已启动")
     print(f"  工作台(Agent): http://{host}:{port}/")
@@ -1253,6 +1253,6 @@ if __name__ == "__main__":
     provider = (os.environ.get("SNACK_LLM_PROVIDER") or "openai-compatible").strip()
     print(f"  LLM Provider: {provider}（{'演示模式' if demo else '真实模型'}）")
     if not demo and not (cfg["llm"].get("api_key") or os.environ.get("OPENAI_API_KEY") or "").strip():
-        print("  [!] 尚未配置 API Key：后台「模型设置」填写，或 export SNACK_LLM_PROVIDER=classroom-fixture 切演示")
+        print("  [!] 尚未配置 API Key：后台「模型设置」填写，或 export SNACK_LLM_PROVIDER=demo-fixture 切演示")
     print("==============================================\n")
     app.run(host=host, port=port, debug=False, threaded=True)

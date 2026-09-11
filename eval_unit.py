@@ -65,7 +65,7 @@ def mk_run(**kw):
                if (kw.pop("hasRisk", False) or risky) else None,
         "moderation": {"pass": mod_pass, "level": "pass" if mod_pass else "high", "issues": []},
         "steps": steps,
-        "durationMs": 12, "provider": "classroom-fixture", "model": "fixture-demo",
+        "durationMs": 12, "provider": "demo-fixture", "model": "fixture-demo",
     }
     return run
 

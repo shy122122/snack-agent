@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""最终工程化收尾 · 新增能力离线验收脚本（test_client，不联网，classroom-fixture）。
+"""最终工程化收尾 · 新增能力离线验收脚本（test_client，不联网，demo-fixture）。
 
 覆盖本轮新增/补齐项：
 1) /catalog 商品目录页 + /api/data/{products,activities,coupons} 可打开、数据非空
-2) 课堂重置 HTTP：只清评测集/Skills/Skill版本/评测批次/运营标注/改进建议 → 已知初始态；
+2) 演示重置 HTTP：只清评测集/Skills/Skill版本/评测批次/运营标注/改进建议 → 已知初始态；
    幂等（连续两次字节一致）；业务基础数据(商品/订单/服务等)与配置不动
-3) 课堂重置守卫：有 queued/running 批次 → 409(带 activeBatchId)；非演示 Provider → 403
-4) classroom_reset.py CLI：真实模式默认拒绝(exit 2)；演示模式成功(exit 0)，可重复
+3) 演示重置守卫：有 queued/running 批次 → 409(带 activeBatchId)；非演示 Provider → 403
+4) demo_reset.py CLI：真实模式默认拒绝(exit 2)；演示模式成功(exit 0)，可重复
 5) Skill 版本快照 API：PUT 改 prompt → /versions 自动新增旧版快照，快照内容=改动前旧值
 6) Provider 缺配置 → 结构化中文错误（非 500、不静默伪装成演示成功）
 
@@ -27,7 +27,7 @@ try:
 except Exception:
     pass
 
-os.environ["SNACK_LLM_PROVIDER"] = "classroom-fixture"  # 必须在 import app 之前
+os.environ["SNACK_LLM_PROVIDER"] = "demo-fixture"  # 必须在 import app 之前
 
 sys.path.insert(0, ".")
 ROOT = Path(__file__).resolve().parent
@@ -84,7 +84,7 @@ def text_of(resp):
 def main():
     print("== 0) py_compile ==")
     r = subprocess.run([sys.executable, "-m", "py_compile", "app.py",
-                        "classroom_reset.py", "engineering_smoke.py"] +
+                        "demo_reset.py", "engineering_smoke.py"] +
                        [f"core/{m}.py" for m in ("providers", "reset")],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
@@ -100,8 +100,8 @@ def main():
 
         # ---- 0) 演示 Provider 基态 ----
         st = json_of(c.get("/api/provider/status"))
-        check("基态：classroom-fixture 演示模式(llm_ready/demo/stable_demo)",
-              st.get("provider") == "classroom-fixture" and st.get("demo") is True
+        check("基态：demo-fixture 演示模式(llm_ready/demo/stable_demo)",
+              st.get("provider") == "demo-fixture" and st.get("demo") is True
               and st.get("llm_ready") is True and st.get("stable_demo") is True,
               st.get("label"))
 
@@ -149,15 +149,15 @@ def main():
         # ---- 业务/配置基线（重置前抓取，用于断言不动）----
         before_biz = {n: (DATA / n).read_bytes() if (DATA / n).exists() else None for n in BUSINESS}
 
-        # ---- 4) 课堂重置 · 409 守卫 ----
-        print("== 验收 3：课堂重置 ==")
+        # ---- 4) 演示重置 · 409 守卫 ----
+        print("== 验收 3：演示重置 ==")
         fake_eb = DATA / "eval_batches.json"
         orig_eb = fake_eb.read_bytes() if fake_eb.exists() else None
         fake_eb.write_text(json.dumps([{"id": "eb_fake_active", "status": "queued",
                                         "createdAt": "2026-09-07T00:00:00"}],
                                       ensure_ascii=False), encoding="utf-8")
         try:
-            r409 = json_of(c.post("/api/system/classroom-reset"))
+            r409 = json_of(c.post("/api/system/demo-reset"))
             check("有 queued 批次 → 409 拒绝并带 activeBatchId",
                   r409.get("ok") is False and r409.get("activeBatchId") == "eb_fake_active",
                   json.dumps(r409, ensure_ascii=False))
@@ -167,9 +167,9 @@ def main():
             else:
                 fake_eb.write_bytes(orig_eb)
 
-        # ---- 5) 课堂重置 · 首次 + 幂等 ----
-        r1 = json_of(c.post("/api/system/classroom-reset"))
-        check("POST classroom-reset → ok + 6 项 restored",
+        # ---- 5) 演示重置 · 首次 + 幂等 ----
+        r1 = json_of(c.post("/api/system/demo-reset"))
+        check("POST demo-reset → ok + 6 项 restored",
               r1.get("ok") is True and len(r1.get("restored") or []) == 6,
               json.dumps(r1.get("restored"), ensure_ascii=False))
         # 各文件已知初始态
@@ -191,7 +191,7 @@ def main():
         snap1 = {n: (DATA / n).read_bytes() if (DATA / n).exists() else None
                  for n in ["eval_cases.json", "skills.json", "skill_versions.json",
                            "eval_batches.json", "ops_annotations.json", "ops_improvements.json"]}
-        r2 = json_of(c.post("/api/system/classroom-reset"))
+        r2 = json_of(c.post("/api/system/demo-reset"))
         check("二次重置 → ok 且幂等（六文件字节与首次一致）",
               r2.get("ok") is True and snap1 == {n: (DATA / n).read_bytes() if (DATA / n).exists() else None
                                                   for n in snap1})
@@ -205,7 +205,7 @@ def main():
         orig_eff = providers.effective_provider_name
         try:
             providers.effective_provider_name = lambda: "openai-compatible"
-            r403 = json_of(c.post("/api/system/classroom-reset"))
+            r403 = json_of(c.post("/api/system/demo-reset"))
             check("真实 Provider 模式 → 403 结构化拒绝（防误清）",
                   r403.get("ok") is False and "演示模式" in (r403.get("error") or ""),
                   (r403.get("error") or ""))
@@ -232,20 +232,20 @@ def main():
             providers.config_for = orig_cfg
 
         # ---- 8) CLI：真实模式拒绝 / 演示模式成功 ----
-        print("== 验收 5：classroom_reset.py CLI ==")
+        print("== 验收 5：demo_reset.py CLI ==")
         env_no = dict(os.environ)
         env_no["SNACK_LLM_PROVIDER"] = "openai-compatible"  # 显式真实模式 → CLI 应拒绝
-        rc_no = subprocess.run([sys.executable, "classroom_reset.py"], capture_output=True,
+        rc_no = subprocess.run([sys.executable, "demo_reset.py"], capture_output=True,
                                text=True, encoding="utf-8", errors="replace", env=env_no)
         check("真实模式(无 env) → 拒绝 exit=2 + 中文提示",
               rc_no.returncode == 2 and "拒绝" in (rc_no.stderr or ""),
               (rc_no.stderr or "").strip().splitlines()[:1][0] if rc_no.stderr else "")
-        rc_yes = subprocess.run([sys.executable, "classroom_reset.py"], capture_output=True,
+        rc_yes = subprocess.run([sys.executable, "demo_reset.py"], capture_output=True,
                                 text=True, encoding="utf-8", errors="replace", env=os.environ)
         check("演示模式 → exit=0 且完成提示",
-              rc_yes.returncode == 0 and "课堂重置完成" in (rc_yes.stdout or ""),
+              rc_yes.returncode == 0 and "演示重置完成" in (rc_yes.stdout or ""),
               (rc_yes.stdout or "").strip().splitlines()[1] if rc_yes.stdout else "")
-        rc_yes2 = subprocess.run([sys.executable, "classroom_reset.py"], capture_output=True,
+        rc_yes2 = subprocess.run([sys.executable, "demo_reset.py"], capture_output=True,
                                  text=True, encoding="utf-8", errors="replace", env=os.environ)
         check("CLI 二次执行幂等 exit=0", rc_yes2.returncode == 0)
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""离线验收脚本（classroom-fixture，不联网）——覆盖方案验收 1–7。
+"""离线验收脚本（demo-fixture，不联网）——覆盖方案验收 1–7。
 
-用法：  SNACK_LLM_PROVIDER=classroom-fixture python ops_smoke.py
+用法：  SNACK_LLM_PROVIDER=demo-fixture python ops_smoke.py
 任意断言失败 → 打印失败明细并以退出码 1 结束（不伪装通过）。
 （方案中「pnpm typecheck/lint/build」属 TS 命令，Python/Flask 栈不可执行，
 本脚本 + py_compile + curl 冒烟为等价替代。）
@@ -50,7 +50,7 @@ def main():
     rec1 = runner.run_run("帮我推荐几款好吃的辣条，预算20左右", source="ops_smoke")
     fr1 = rec1.get("finalReply") or {}
     check("RunRecord status=ok", rec1.get("status") == "ok", rec1.get("status"))
-    check("provider=classroom-fixture", rec1.get("provider") == "classroom-fixture", rec1.get("provider"))
+    check("provider=demo-fixture", rec1.get("provider") == "demo-fixture", rec1.get("provider"))
     check("有最终回复文本", bool((fr1.get("text") or "").strip()))
     check("有执行步骤(Trace)", len(rec1.get("steps") or []) >= 5,
           f"{len(rec1.get('steps') or [])} 步")
