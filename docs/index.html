@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>零食电商 AI 客服工作台与评测系统</title>
+  <meta name="description" content="TOB 零食电商 AI 客服工作台与评测系统项目展示入口" />
+  <style>
+    :root{--ink:#172033;--muted:#647086;--line:#dfe5ee;--brand:#f97316;--navy:#071021;--panel:#fff}
+    *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:#f3f6fa;color:var(--ink);line-height:1.65}a{text-decoration:none;color:inherit}.wrap{max-width:1080px;margin:0 auto}.hero{padding:56px 22px 44px;background:linear-gradient(135deg,#071021,#14213a 58%,#7c2d12);color:#fff}.tag{display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,.2);border-radius:999px;color:#fed7aa;font-size:13px;font-weight:700}h1{margin:18px 0 12px;font-size:clamp(30px,5vw,52px);line-height:1.1}.hero p{max-width:760px;margin:0;color:#dbe5f4;font-size:17px}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.22);font-weight:800;color:#fff}.btn.primary{background:var(--brand);border-color:var(--brand)}main{padding:28px 22px 54px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;box-shadow:0 8px 24px rgba(20,32,54,.05)}.card h2,.card h3{margin:0 0 8px;line-height:1.25}.card h2{font-size:20px}.card h3{font-size:16px}.card p{margin:0;color:var(--muted);font-size:14px}.section{margin-top:32px}.section h2{margin:0 0 12px;font-size:24px}.links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.link{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px}.link strong{display:block;font-size:14px}.link span{display:block;margin-top:4px;color:var(--muted);font-size:12px;word-break:break-all}.note{margin-top:16px;color:var(--muted);font-size:13px}@media(max-width:840px){.grid,.links{grid-template-columns:1fr}.hero{padding-top:38px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <span class="tag">TOB · AI 产品项目</span>
+      <h1>零食电商 AI 客服工作台与评测系统</h1>
+      <p>面向零食电商客服场景，覆盖商品咨询、优惠算价、物流售后、运营标注和评测回归，展示 AI 产品从场景拆解、模块规划到评测优化的完整闭环。</p>
+      <div class="actions">
+        <a class="btn primary" href="https://snack-agent.onrender.com/console#overview" target="_blank" rel="noopener">打开在线前端</a>
+        <a class="btn" href="PRD.md" target="_blank" rel="noopener">查看 PRD</a>
+        <a class="btn" href="https://github.com/shy122122/snack-agent" target="_blank" rel="noopener">查看 GitHub</a>
+      </div>
+    </div>
+  </header>
+  <main><div class="wrap">
+    <section class="grid">
+      <article class="card"><h2>产品定位</h2><p>不是单一聊天窗口，而是集客服工作台、商品目录、运营复盘、评测中心和上线决策于一体的 AI 客服系统。</p></article>
+      <article class="card"><h2>核心场景</h2><p>覆盖商品问答、优惠算价、订单咨询、售后政策、风险识别和人工转接等零食电商高频客服问题。</p></article>
+      <article class="card"><h2>评测闭环</h2><p>通过回答准确率、问题解决率、人工转接率、满意度和响应时长等指标判断 AI 客服是否真正减负。</p></article>
+    </section>
+    <section class="section"><h2>快捷链接</h2><div class="links">
+      <a class="link" href="https://snack-agent.onrender.com/console#overview" target="_blank" rel="noopener"><strong>在线前端</strong><span>snack-agent.onrender.com/console#overview</span></a>
+      <a class="link" href="PRD.md" target="_blank" rel="noopener"><strong>PRD 文档</strong><span>docs/PRD.md</span></a>
+      <a class="link" href="https://github.com/shy122122/snack-agent" target="_blank" rel="noopener"><strong>GitHub 仓库</strong><span>github.com/shy122122/snack-agent</span></a>
+      <a class="link" href="DEPLOY_LINKS.md" target="_blank" rel="noopener"><strong>部署说明</strong><span>docs/DEPLOY_LINKS.md</span></a>
+    </div><p class="note">若在线前端域名变更，只需替换 Render 部署后的实际域名；PRD 和展示页由 GitHub Pages 托管。</p></section>
+    <section class="section"><h2>模块结构</h2><div class="grid">
+      <article class="card"><h3>总控台</h3><p>汇总目录健康、模型状态、评测回归和运营问题，辅助判断是否适合演示或上线。</p></article>
+      <article class="card"><h3>客服工作台</h3><p>承接用户咨询，展示 AI 回复、执行过程和运行记录，便于客服理解处理依据。</p></article>
+      <article class="card"><h3>商品目录</h3><p>维护商品、活动和优惠券，让 AI 回复依赖可运营数据，而不是一次性 Prompt。</p></article>
+      <article class="card"><h3>运营中心</h3><p>沉淀低分回复、未命中问题、转人工原因和用户反馈，形成持续优化素材。</p></article>
+      <article class="card"><h3>评测中心</h3><p>通过用例、批次和版本对比，验证回答准确率、问题解决率和风险拦截效果。</p></article>
+      <article class="card"><h3>能力配置</h3><p>管理 Skill、Tool、Planner 和模型 Provider，支撑演示模式与后续生产化扩展。</p></article>
+    </div></section>
+  </div></main>
+</body>
+</html>
