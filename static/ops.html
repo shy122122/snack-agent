@@ -6,6 +6,7 @@
 <title>运营中心 · 运行监控 / 服务评分 / 数据标注 / 改进建议</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<link rel="stylesheet" href="/static/brand.css"/>
 <style>
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
   ::-webkit-scrollbar{width:8px;height:8px}
@@ -86,6 +87,12 @@ async function loadRuns(){if(runCache.length)return runCache;const j=await api("
 function runOptions(){const sel=document.createElement("select");sel.className="opt";return sel;}
 function fillRunSelect(el,selVal){el.innerHTML='<option value="">— 直接填 question，不绑定运行 —</option>'+runCache.map(r=>`<option value="${esc(r.id)}" ${r.id===selVal?"selected":""}>${statusChipVal(r.status)} [${esc(r.id)}] ${esc(String(r.question||"").slice(0,36))}</option>`).join("");}
 function statusChipVal(st){const map={ok:"正常",error:"出错",degraded:"受限",handoff:"转人工",running:"运行中"};return map[st]||st;}
+async function issueToEval(sourceType,sourceId){
+  try{
+    const j=await post("/api/eval/cases/from-issue",{sourceType,sourceId});
+    toast("已生成回归用例："+((j.case&&j.case.name)||sourceId));
+  }catch(e){toast(e.message,false);}
+}
 
 // ----------------------------------------------------------------- tabs
 const TABS=[
@@ -184,12 +191,14 @@ function mountRatings(){
         <div class="flex items-center gap-2 flex-wrap">
           <span class="font-bold text-amber-600">${r.score} 分</span>${r.badcase?'<span class="text-[10px] px-1 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">坏例</span>':""}${badge(r.problemType||"未分类")}${dateRow(r.createdAt)}
           <span class="ml-auto flex gap-1.5"><a href="/runs/${r.runId}" target="_blank" class="text-xs text-orange-500 underline ${r.runId?"":"hidden"}">Trace #${r.runId}</a>
+          <button data-id="${r.id}" class="toEval text-xs px-2 py-0.5 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100">生成回归用例</button>
           <button data-id="${r.id}" class="toImp text-xs px-2 py-0.5 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100">沉淀为改进建议</button></span></div>
         <div class="text-xs text-slate-600 mt-1">${esc(r.question||"")}</div>
         ${r.comment?`<div class="text-xs text-slate-500 mt-0.5"><i class="fa fa-comment-o mr-1"></i>${esc(r.comment)}</div>`:""}
         ${r.replyText?`<details class="mt-1"><summary class="text-[11px] text-slate-400 cursor-pointer">回复节选</summary><div class="text-[11px] text-slate-500 bg-slate-50 rounded-lg p-2 mt-1">${esc(String(r.replyText).slice(0,300))}</div></details>`:""}
       </div>`).join("")}</div>`:`<div class="text-slate-400 text-sm py-8 text-center">暂无评分记录</div>`;
       $$("#rt_list [data-id]").forEach(b=>b.onclick=()=>window._toImprovement("rating",b.dataset.id));
+      $$("#rt_list .toEval").forEach(b=>b.onclick=()=>issueToEval("rating",b.dataset.id));
     }).catch(e=>{$("#rt_list").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
   }
   window._toImprovement=async(kind,id)=>{
@@ -255,10 +264,12 @@ function mountAnnotations(){
           <div class="flex gap-1.5 mt-1.5">
             ${a.status!=="accepted"?`<button data-st="accepted" class="stb text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">采纳</button>`:""}
             ${a.status!=="rejected"?`<button data-st="rejected" class="stb text-[11px] px-2 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-200">驳回</button>`:""}
+            <button data-id="${a.id}" class="toEval text-[11px] px-2 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200">生成回归用例</button>
             ${(d.overall==null||d.overall>2)?"":`<button data-id="${a.id}" class="toImp text-[11px] px-2 py-0.5 rounded bg-sky-50 text-sky-600 border border-sky-200">进入改进建议</button>`}
           </div></div>`;}).join("")}</div>`:`<div class="text-slate-400 text-sm py-8 text-center">暂无标注</div>`;
       $$("#an_list .stb").forEach(b=>b.onclick=()=>setAnnoStatus(b.closest("[data-aid]").dataset.aid,b.dataset.st));
       $$("#an_list .toImp").forEach(b=>b.onclick=()=>window._toImprovement?window._toImprovement("annotation",b.dataset.id):toImprovementA(b.dataset.id));
+      $$("#an_list .toEval").forEach(b=>b.onclick=()=>issueToEval("annotation",b.dataset.id));
     }).catch(e=>{$("#an_list").innerHTML=`<div class="text-rose-600 text-xs">${esc(e.message)}</div>`;});
   }
   async function toImprovementA(id){try{await post("/api/improvements",{fromAnnotation:id});toast("已生成改进建议");selectTab("improvements");}catch(e){toast(e.message,false);}}
@@ -317,6 +328,7 @@ function mountImprovements(){
         ${ap?`<div class="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg p-2">已应用 → 目标 ${esc(ap.label||"")} · 自动快照 <span class="mono">${esc(ap.snapshotVid||"—")}</span>（${esc(ap.at||"")}）</div>`:""}
         <div class="flex gap-1.5 mt-auto flex-wrap text-[11px]">
           ${canRoll?`<button data-act="rollback" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"><i class="fa fa-undo"></i> 回滚本次改进</button>`:""}
+          <button data-act="toEval" class="px-2 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100"><i class="fa fa-flask"></i> 生成回归用例</button>
           ${imp.status==="applied"||imp.status==="open"?`<button data-act="reject" class="px-2 py-1 rounded-lg bg-slate-50 text-slate-500 border border-slate-200">标记搁置</button>`:""}
           <span class="text-[10px] text-slate-300 ml-auto">创建 ${(imp.createdAt||"").slice(0,16).replace("T"," ")}</span></div>
       </div>`;}).join("");
@@ -334,6 +346,7 @@ function mountImprovements(){
       card.querySelector("[data-act=rollback]")&&(card.querySelector("[data-act=rollback]").onclick=async()=>{
         if(!confirm("确认回滚本次改进？会恢复应用前快照内容。"))return;
         try{await post("/api/improvements/"+id+"/rollback",{});toast("已回滚到应用前快照");mountImprovements();}catch(e){toast(e.message,false);}});
+      card.querySelector("[data-act=toEval]")&&(card.querySelector("[data-act=toEval]").onclick=()=>issueToEval("improvement",id));
       card.querySelector("[data-act=reject]")&&(card.querySelector("[data-act=reject]").onclick=async()=>{try{await post("/api/improvements/"+id+"/status",{status:"rejected"});toast("已标记搁置");mountImprovements();}catch(e){toast(e.message,false);}});
     });
   }

@@ -16,6 +16,7 @@ data/skill_versions.json
 data/tool_state.json
 data/planner_config.json
 data/llm_state.json
+data/catalog_changes.json
 
 # ---- 日志与输出 ----
 *.log

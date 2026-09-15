@@ -3,185 +3,328 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>商品目录 · 零食电商数据浏览（只读）</title>
+<title>商品目录 · 运营管理</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<link rel="stylesheet" href="/static/brand.css"/>
 <style>
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
-  .card{background:#fff;border:1px solid #eef0f3;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
   .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
-  th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#64748b;font-weight:600;text-align:left}
-  .inp{width:100%;border:1px solid #e2e8f0;border-radius:10px;padding:6px 9px;font-size:13px;background:#fff}
-  .inp:focus{outline:none;border-color:#f97316;box-shadow:0 0 0 2px rgba(249,115,22,.12)}
-  .chipbtn{border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;background:#fff;color:#475569;transition:all .12s}
-  .chipbtn.on{border-color:#f97316;background:#fff7ed;color:#c2410c;font-weight:600}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#64748b;font-weight:700;text-align:left}
+  .inp{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff}
+  .inp:focus{outline:none;border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,.14)}
 </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800">
-<header class="bg-white/85 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
+<body class="min-h-screen text-slate-800">
+<header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
   <div class="max-w-[1500px] mx-auto px-4 py-2.5 flex items-center gap-3 flex-wrap">
     <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-white grid place-items-center shadow shrink-0"><i class="fa fa-sitemap"></i></div>
     <div class="leading-tight mr-auto">
-      <h1 class="font-bold">零食电商 · 商品目录</h1>
-      <p class="text-[11px] text-slate-500">本地真实业务数据 <span class="mono">data/products.json · activities.json · coupons.json</span>（只读浏览）· Agent 的 Tool 查询/算价结果与此一致</p>
+      <h1 class="font-bold">零食电商 · 目录管理</h1>
+      <p class="text-[11px] text-slate-500">商品、满减活动、优惠券直接写入本地数据源；保存后 Agent 查询与算价即时生效</p>
     </div>
-    <nav class="flex items-center gap-1 text-sm">
-      <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">工作台</a>
-      <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">演示</a>
-      <a href="/ops" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">运营</a>
-      <a href="/eval" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">评测</a>
+    <nav class="brand-nav flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-1.5 rounded-lg">工作台</a>
+      <a href="/demo" class="px-3 py-1.5 rounded-lg">演示</a>
       <a href="/catalog" class="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium">目录</a>
-      <a href="/console" class="px-3 py-1.5 rounded-lg hover:bg-orange-100">总控台</a>
+      <a href="/console#catalog" class="px-3 py-1.5 rounded-lg">总控台</a>
     </nav>
   </div>
 </header>
 <script>if(location.search.indexOf("embed=1")>-1){var _h=document.querySelector("header");if(_h)_h.classList.add("hidden");}</script>
 
-<div class="max-w-[1500px] mx-auto px-4 py-4 space-y-4">
-  <div id="toast" class="hidden fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg"></div>
+<main class="max-w-[1500px] mx-auto px-4 py-4 space-y-4">
+  <div id="toast" class="hidden fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-white text-sm shadow-lg"></div>
 
-  <!-- 顶部统计 -->
-  <div class="card p-4 flex flex-wrap items-center gap-2">
-    <div class="flex items-center gap-2.5 mr-2 px-3">
-      <div class="leading-tight"><div class="text-lg font-bold" id="statProd">–</div><div class="text-[10px] text-slate-400">在售商品</div></div>
+  <section class="brand-hero p-4 flex flex-wrap items-center gap-4">
+    <div class="mr-auto">
+      <div class="text-[11px] uppercase tracking-wider text-orange-200 font-bold">Catalog Ops</div>
+      <h2 class="mt-1 text-2xl font-bold">业务数据可视化维护</h2>
+      <p class="mt-1 text-sm text-slate-300">改商品、活动、券，不需要打开 JSON；页面会做基础校验并保持与 Tool 同源。</p>
     </div>
-    <div class="flex items-center gap-2.5 mr-2 px-3 border-l border-slate-100">
-      <div class="leading-tight"><div class="text-lg font-bold text-orange-600" id="statCat">–</div><div class="text-[10px] text-slate-400">品类</div></div>
+    <div class="grid grid-cols-3 gap-2 text-center text-xs">
+      <div class="rounded-lg bg-white/10 px-4 py-2"><div id="statProd" class="text-xl font-bold text-white">-</div><div class="text-slate-300">商品</div></div>
+      <div class="rounded-lg bg-white/10 px-4 py-2"><div id="statAct" class="text-xl font-bold text-white">-</div><div class="text-slate-300">活动</div></div>
+      <div class="rounded-lg bg-white/10 px-4 py-2"><div id="statCpn" class="text-xl font-bold text-white">-</div><div class="text-slate-300">优惠券</div></div>
     </div>
-    <div class="flex items-center gap-2.5 mr-2 px-3 border-l border-slate-100">
-      <div class="leading-tight"><div class="text-lg font-bold text-emerald-600" id="statAct">–</div><div class="text-[10px] text-slate-400">进行中满减活动</div></div>
-    </div>
-    <div class="flex items-center gap-2.5 mr-2 px-3 border-l border-slate-100">
-      <div class="leading-tight"><div class="text-lg font-bold text-sky-600" id="statCpn">–</div><div class="text-[10px] text-slate-400">优惠券</div></div>
-    </div>
-    <div class="ml-auto text-[11px] text-slate-400"><i class="fa fa-info-circle mr-1"></i>算价示例：<span class="mono" id="examplePrice">–</span></div>
-  </div>
+  </section>
 
-  <!-- 商品区 -->
-  <div class="card">
-    <div class="p-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
-      <span class="text-sm font-bold mr-1"><i class="fa fa-cubes text-orange-500 mr-1"></i>商品</span>
-      <div class="flex flex-wrap gap-1 text-[11px]" id="catFilter"></div>
-      <div class="ml-auto flex items-center gap-1.5 text-sm">
-        <input id="q" placeholder="搜索名称/规格/标签…" class="inp !w-56"/>
-        <select id="st" onchange="render()" class="inp !w-auto !py-1.5 text-xs">
-          <option value="">状态：全部</option><option value="在售">在售</option><option value="下架">下架</option>
-        </select>
-      </div>
+  <section class="brand-shell overflow-hidden">
+    <div class="p-3 border-b border-slate-200 flex flex-wrap items-center gap-2">
+      <div id="tabs" class="flex flex-wrap gap-1 text-sm mr-auto"></div>
+      <input id="search" class="inp !w-64" placeholder="搜索名称、ID、分类、标签"/>
+      <button id="exportBtn" class="brand-button brand-button-secondary px-3 py-2 text-sm" title="导出当前页数据"><i class="fa fa-download"></i>导出</button>
+      <label class="brand-button brand-button-secondary px-3 py-2 text-sm cursor-pointer" title="导入 JSON 数组，按 ID 新增或覆盖">
+        <i class="fa fa-upload"></i>导入
+        <input id="importFile" type="file" accept="application/json" class="hidden"/>
+      </label>
+      <button id="addBtn" class="brand-button brand-button-primary px-4 py-2 text-sm"><i class="fa fa-plus"></i>新增</button>
     </div>
-    <div id="prodGrid" class="p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"></div>
-    <div id="prodEmpty" class="hidden p-8 text-center text-slate-400 text-sm">无匹配商品</div>
-  </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead id="thead" class="bg-slate-50"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="empty" class="hidden p-10 text-center text-slate-400 text-sm">暂无数据</div>
+  </section>
 
-  <!-- 活动 + 优惠券 -->
-  <div class="grid lg:grid-cols-2 gap-4">
-    <div class="card">
-      <div class="p-3 border-b border-slate-100 text-sm font-bold"><i class="fa fa-bullhorn text-emerald-500 mr-1"></i>满减活动</div>
-      <div class="overflow-x-auto"><table class="w-full"><thead><tr class="px-3"><th class="p-2.5 pl-4">名称</th><th class="p-2.5">门槛/力度</th><th class="p-2.5">范围</th><th class="p-2.5">状态</th></tr></thead><tbody id="actBody"></tbody></table></div>
+  <section class="brand-shell overflow-hidden">
+    <div class="p-3 border-b border-slate-200 flex items-center gap-2">
+      <div class="font-bold text-sm"><i class="fa fa-check-circle-o text-emerald-500 mr-1"></i>数据健康</div>
+      <div id="qualitySummary" class="text-xs text-slate-400 mr-auto">正在检查商品、活动、优惠券配置</div>
+      <button onclick="loadQuality()" class="brand-button brand-button-secondary px-3 py-1.5 text-xs"><i class="fa fa-refresh"></i>重检</button>
     </div>
-    <div class="card">
-      <div class="p-3 border-b border-slate-100 text-sm font-bold"><i class="fa fa-ticket text-sky-500 mr-1"></i>优惠券</div>
-      <div class="overflow-x-auto"><table class="w-full"><thead><tr class="px-3"><th class="p-2.5 pl-4">券</th><th class="p-2.5">条件/面额</th><th class="p-2.5">范围</th><th class="p-2.5">有效期</th></tr></thead><tbody id="cpnBody"></tbody></table></div>
-    </div>
-  </div>
+    <div id="qualityBody" class="p-3"></div>
+  </section>
 
-  <p class="text-center text-[11px] text-slate-400 pb-2">来源：<span class="mono">GET /api/data/products|activities|coupons</span>（store.load_* 原样返回，与 Agent Tool 同源）</p>
+  <section class="brand-shell overflow-hidden">
+    <div class="p-3 border-b border-slate-200 flex items-center gap-2">
+      <div class="font-bold text-sm"><i class="fa fa-history text-orange-500 mr-1"></i>最近变更</div>
+      <div class="text-xs text-slate-400 mr-auto">记录商品、活动、优惠券的新增、编辑、删除，方便追溯运营调整</div>
+      <button onclick="loadChanges()" class="brand-button brand-button-secondary px-3 py-1.5 text-xs"><i class="fa fa-refresh"></i>刷新</button>
+    </div>
+    <div id="changeBody" class="divide-y divide-slate-100"></div>
+    <div id="changeEmpty" class="hidden p-6 text-center text-slate-400 text-sm">暂无变更记录</div>
+  </section>
+</main>
+
+<div id="modal" class="hidden fixed inset-0 z-50 bg-slate-950/50 p-4 items-center justify-center">
+  <form id="form" class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[92vh] overflow-auto">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-2">
+      <h3 id="modalTitle" class="font-bold flex-1">编辑</h3>
+      <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500"><i class="fa fa-times"></i></button>
+    </div>
+    <div id="formBody" class="p-5 grid md:grid-cols-2 gap-3"></div>
+    <div id="impactPreview" class="mx-5 mb-4"></div>
+    <div class="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
+      <button type="button" onclick="closeModal()" class="brand-button brand-button-secondary px-4 py-2 text-sm">取消</button>
+      <button class="brand-button brand-button-primary px-4 py-2 text-sm"><i class="fa fa-save"></i>保存</button>
+    </div>
+  </form>
 </div>
 
 <script>
-let PRODS=[], ACTS=[], CPNS=[], cats=[], catSel=null;
 const $=s=>document.querySelector(s);
-function fmt(n){ return (n==null?"–":Number(n).toLocaleString("zh-CN")); }
-function toast(msg,ok){const t=$("#toast");t.textContent=msg;t.className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl text-white text-sm shadow-lg "+(ok===false?"bg-rose-500":"bg-emerald-600");t.classList.remove("hidden");clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.add("hidden"),2200);}
-function yuan(v){ return "¥"+Number(v).toFixed(2).replace(/\.00$/,""); }
-function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const yuan=v=>"¥"+Number(v||0).toFixed(2).replace(/\.00$/,"");
+let STATE={products:[],activities:[],coupons:[]}, CHANGES=[], QUALITY=null;
+let current="products", editing=null;
 
-function renderCats(){
-  cats=[...new Set(PRODS.map(p=>p.category).filter(Boolean))];
-  const box=$("#catFilter"); box.innerHTML="";
-  const mk=(label,val,on)=>{const b=document.createElement("button");b.type="button";b.className="chipbtn"+(on?" on":"");b.textContent=label;b.onclick=()=>{catSel=val;box.querySelectorAll(".chipbtn").forEach(x=>x.classList.toggle("on",x===b));render();};box.appendChild(b);};
-  mk("全部",null,catSel==null);
-  cats.forEach(c=>mk(c,c,catSel===c));
+const CONFIG={
+  products:{
+    label:"商品", icon:"fa-cubes", endpoint:"products",
+    fields:[
+      ["id","ID","text","留空自动生成，如 P15"],["name","商品名称","text","每日坚果..."],
+      ["category","品类","text","坚果炒货"],["price","价格","number","68.9"],
+      ["spec","规格","text","25g×30袋 / 盒"],["tags","标签","text","逗号分隔"],
+      ["sales","销量","number","0"],["stock","库存","number","0"],
+      ["rating","评分","number","4.8"],["status","状态","select","在售|下架"]
+    ],
+    heads:["商品","价格/库存","分类/标签","状态","操作"],
+    row:p=>`<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="p-3"><div class="font-bold">${esc(p.name)}</div><div class="mono text-[11px] text-slate-400">${esc(p.id)} · ${esc(p.spec||"")}</div></td>
+      <td class="p-3"><div class="font-bold text-orange-600">${yuan(p.price)}</div><div class="text-xs text-slate-400">库存 ${p.stock??0} · 销量 ${p.sales??0} · 评分 ${p.rating??"-"}</div></td>
+      <td class="p-3"><div class="text-xs text-slate-500">${esc(p.category||"")}</div><div class="mt-1 flex flex-wrap gap-1">${(p.tags||[]).map(t=>`<span class="px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px]">${esc(t)}</span>`).join("")}</div></td>
+      <td class="p-3">${badge(p.status==="在售"?"在售":"下架",p.status==="在售"?"green":"gray")}</td>
+      <td class="p-3 text-right">${ops(p.id)}</td></tr>`
+  },
+  activities:{
+    label:"满减活动", icon:"fa-bullhorn", endpoint:"activities",
+    fields:[
+      ["id","ID","text","留空自动生成，如 A06"],["name","活动名称","text","全场满99减20"],
+      ["type","活动类型","select","满减|折扣|第二件半价"],["threshold","门槛","number","99"],
+      ["value","力度/折扣","number","20 或 0.9"],["scope","适用范围","select","all|category|product"],
+      ["product_ids","指定商品ID","text","P01,P02"],["categories","指定品类","text","坚果炒货,肉脯肉干"],
+      ["start","开始日期","date",""],["end","结束日期","date",""],["status","状态","select","进行中|已结束"],["description","说明","textarea",""]
+    ],
+    heads:["活动","门槛/力度","适用范围","周期/状态","操作"],
+    row:a=>`<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="p-3"><div class="font-bold">${esc(a.name)}</div><div class="mono text-[11px] text-slate-400">${esc(a.id)} · ${esc(a.type)}</div></td>
+      <td class="p-3 text-sm">满 <b>${a.threshold??"-"}</b> / 值 <b class="text-emerald-600">${a.value??"-"}</b></td>
+      <td class="p-3 text-xs text-slate-500">${scopeText(a)}</td>
+      <td class="p-3"><div class="text-xs text-slate-400">${esc(a.start||"")} ~ ${esc(a.end||"")}</div>${badge((a.status||"进行中")+" · "+dateState(a)[0],(a.status==="已结束"||dateState(a)[1]==="gray")?"gray":"green")}</td>
+      <td class="p-3 text-right">${ops(a.id)}</td></tr>`
+  },
+  coupons:{
+    label:"优惠券", icon:"fa-ticket", endpoint:"coupons",
+    fields:[
+      ["id","ID","text","留空自动生成，如 C05"],["name","券名称","text","全场通用券 满30减5"],
+      ["type","券类型","text","满减券"],["condition","使用门槛","number","30"],
+      ["value","面额","number","5"],["scope","适用范围","select","all|category"],
+      ["categories","指定品类","text","坚果炒货,肉脯肉干"],["start","开始日期","date",""],["end","结束日期","date",""],["description","说明","textarea",""]
+    ],
+    heads:["优惠券","门槛/面额","适用范围","有效期","操作"],
+    row:c=>`<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="p-3"><div class="font-bold">${esc(c.name)}</div><div class="mono text-[11px] text-slate-400">${esc(c.id)} · ${esc(c.type)}</div></td>
+      <td class="p-3 text-sm">满 <b>${c.condition??"-"}</b> 减 <b class="text-sky-600">${c.value??"-"}</b></td>
+      <td class="p-3 text-xs text-slate-500">${scopeText(c)}</td>
+      <td class="p-3 text-xs text-slate-400">${esc(c.start||"")} ~ ${esc(c.end||"")}<div class="mt-1">${badge(dateState(c)[0],dateState(c)[1])}</div></td>
+      <td class="p-3 text-right">${ops(c.id)}</td></tr>`
+  }
+};
+
+function badge(t,color){const m={green:"bg-emerald-50 text-emerald-700",gray:"bg-slate-100 text-slate-500"}[color]||"bg-slate-100 text-slate-500";return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${m}">${esc(t)}</span>`}
+function dateState(row){
+  const today=new Date().toISOString().slice(0,10), s=row.start||"", e=row.end||"";
+  if(e&&e<today)return ["已过期","gray"];
+  if(s&&s>today)return ["未开始","gray"];
+  return ["生效中","green"];
+}
+function scopeText(x){return x.scope==="all"?"全场":(x.product_ids||[]).length?`商品：${(x.product_ids||[]).join(", ")}`:(x.categories||[]).length?`品类：${(x.categories||[]).join(", ")}`:esc(x.scope||"-")}
+function ops(id){return `<button onclick="openEditor('${id}')" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-white text-xs"><i class="fa fa-pencil"></i> 编辑</button> <button onclick="removeItem('${id}')" class="px-2 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs"><i class="fa fa-trash"></i></button>`}
+function toast(msg,ok=true){const t=$("#toast");t.textContent=msg;t.className=`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-white text-sm shadow-lg ${ok?"bg-emerald-600":"bg-rose-600"}`;t.classList.remove("hidden");clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.add("hidden"),2400)}
+
+async function api(url,opt){const r=await fetch(url,opt);const j=await r.json().catch(()=>({ok:false,error:"响应解析失败"}));if(!r.ok||j.ok===false)throw new Error(j.error||"请求失败");return j}
+async function load(){const [p,a,c]=await Promise.all(["products","activities","coupons"].map(k=>api("/api/data/"+k)));STATE.products=p.rows||[];STATE.activities=a.rows||[];STATE.coupons=c.rows||[];render();loadQuality();loadChanges()}
+async function loadChanges(){try{const j=await api("/api/data/changes?limit=30");CHANGES=j.changes||[];renderChanges()}catch(e){$("#changeBody").innerHTML=`<div class="p-4 text-sm text-rose-600">变更记录加载失败：${esc(e.message)}</div>`}}
+async function loadQuality(){try{const j=await api("/api/data/quality");QUALITY=j.quality||null;renderQuality()}catch(e){$("#qualityBody").innerHTML=`<div class="text-sm text-rose-600">健康检查失败：${esc(e.message)}</div>`}}
+
+function renderTabs(){const box=$("#tabs");box.innerHTML=Object.entries(CONFIG).map(([k,c])=>`<button onclick="switchTab('${k}')" class="px-3 py-1.5 rounded-lg text-sm font-bold border ${current===k?"bg-orange-50 border-orange-200 text-orange-700":"bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}"><i class="fa ${c.icon} mr-1"></i>${c.label}</button>`).join("")}
+function switchTab(k){current=k;$("#search").value="";render()}
+function render(){renderTabs();$("#statProd").textContent=STATE.products.length;$("#statAct").textContent=STATE.activities.length;$("#statCpn").textContent=STATE.coupons.length;const cfg=CONFIG[current];$("#addBtn").innerHTML=`<i class="fa fa-plus"></i>新增${cfg.label}`;$("#thead").innerHTML=`<tr>${cfg.heads.map(h=>`<th class="p-3">${h}</th>`).join("")}</tr>`;const q=($("#search").value||"").toLowerCase();let rows=STATE[current]||[];if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));$("#empty").classList.toggle("hidden",rows.length>0);$("#tbody").innerHTML=rows.map(cfg.row).join("")}
+function renderChanges(){
+  const names={products:"商品",activities:"活动",coupons:"优惠券"};
+  const acts={create:["新增","text-emerald-700 bg-emerald-50"],update:["编辑","text-blue-700 bg-blue-50"],delete:["删除","text-rose-700 bg-rose-50"]};
+  $("#changeEmpty").classList.toggle("hidden",CHANGES.length>0);
+  $("#changeBody").innerHTML=CHANGES.map(c=>{
+    const a=acts[c.action]||[c.action||"变更","text-slate-600 bg-slate-100"];
+    const fields=(c.changes||[]).map(x=>x.field).slice(0,6).join("、")||"无字段差异";
+    return `<div class="p-3 flex flex-wrap items-start gap-3">
+      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${a[1]}">${a[0]}</span>
+      <div class="flex-1 min-w-[220px]">
+        <div class="text-sm font-medium">${esc(names[c.kind]||c.kind)} · ${esc(c.itemName||c.itemId||"-")}</div>
+        <div class="text-xs text-slate-400 mt-0.5">字段：${esc(fields)}</div>
+      </div>
+      <div class="text-right text-[11px] text-slate-400">
+        <div>${esc(c.createdAt||"")}</div>
+        <div class="mono">${esc(c.itemId||"")}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+function renderQuality(){
+  const q=QUALITY||{counts:{error:0,warning:0},issues:[]};
+  const errs=q.counts?.error||0, warns=q.counts?.warning||0;
+  $("#qualitySummary").textContent=errs?`${errs} 个阻断问题，需先修复再用于演示/上线`:warns?`${warns} 个提醒项，建议复核`:"数据配置健康，推荐/算价可正常使用";
+  const tone=errs?"border-rose-200 bg-rose-50 text-rose-700":warns?"border-amber-200 bg-amber-50 text-amber-700":"border-emerald-200 bg-emerald-50 text-emerald-700";
+  if(!(q.issues||[]).length){
+    $("#qualityBody").innerHTML=`<div class="rounded-lg border ${tone} px-3 py-2 text-sm"><i class="fa fa-check-circle"></i> 未发现数据配置问题。</div>`;
+    return;
+  }
+  $("#qualityBody").innerHTML=`<div class="rounded-lg border ${tone} px-3 py-2 text-sm mb-3">
+    <i class="fa ${errs?"fa-exclamation-triangle":warns?"fa-info-circle":"fa-check-circle"}"></i>
+    阻断 ${errs} · 提醒 ${warns}
+  </div>
+  <div class="grid md:grid-cols-2 gap-2">${(q.issues||[]).map(i=>{
+    const red=i.level==="error";
+    return `<div class="rounded-lg border ${red?"border-rose-100 bg-rose-50":"border-amber-100 bg-amber-50"} px-3 py-2">
+      <div class="flex items-center gap-2 text-xs"><span class="font-bold ${red?"text-rose-700":"text-amber-700"}">${red?"阻断":"提醒"}</span><span class="mono text-slate-400">${esc(i.kind)} / ${esc(i.itemId||"-")}</span></div>
+      <div class="mt-1 text-sm text-slate-700">${esc(i.message)}</div>
+      <div class="mt-1 text-[11px] text-slate-500">${esc(i.action||"请复核该配置。")}</div>
+      ${i.field?`<div class="mt-1 text-[11px] text-slate-400">字段：${esc(i.field)}</div>`:""}
+    </div>`;
+  }).join("")}</div>`;
 }
 
-function prodCard(p){
-  const on=p.status==="在售";
-  const sale=(p.tags||[]).map(t=>`<span class="px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px]">${esc(t)}</span>`).join(" ");
-  return `<div class="border ${on?"border-slate-200":"border-dashed border-slate-200 opacity-60"} rounded-xl p-3 flex flex-col gap-2 bg-white hover:shadow transition-shadow">
-    <div class="flex items-start justify-between gap-2">
-      <div class="text-sm font-bold leading-snug">${esc(p.name)}</div>
-      <span class="shrink-0 mono text-[10px] text-slate-400 pt-0.5">${esc(p.id)}</span>
-    </div>
-    <div class="flex flex-wrap gap-1">${sale||`<span class="text-[10px] text-slate-300">无标签</span>`}</div>
-    <div class="text-[11px] text-slate-500">${esc(p.category||"未分类")} · ${esc(p.spec||"")}</div>
-    <div class="mt-auto flex items-end justify-between pt-1 border-t border-slate-100">
-      <div><span class="text-lg font-bold text-orange-600">${yuan(p.price)}</span>
-        <span class="text-[10px] text-slate-400 ml-1">${on?'':esc(p.status||"")}</span></div>
-      <div class="text-right text-[10px] text-slate-400 leading-tight">
-        <div><i class="fa fa-shopping-cart mr-0.5"></i>${fmt(p.sales)}</div>
-        <div>库存 ${fmt(p.stock)} · 评分 <span class="text-amber-500">${p.rating??"–"}</span></div>
-      </div>
-    </div>
+function formDraft(){
+  const f=$("#form");
+  if(!f)return {};
+  const fd=new FormData(f), body={};
+  for(const [k,v] of fd.entries())body[k]=v;
+  return body;
+}
+function splitVals(v){return String(v||"").split(",").map(x=>x.trim()).filter(Boolean)}
+function impactLines(draft){
+  const lines=[];
+  if(current==="products"){
+    const old=editing?(STATE.products.find(x=>String(x.id)===editing)||{}):{};
+    const pid=editing||draft.id;
+    const cat=draft.category||old.category||"";
+    const refs=STATE.activities.filter(a=>(a.product_ids||[]).includes(pid));
+    const catActs=STATE.activities.filter(a=>(a.categories||[]).includes(cat));
+    const catCpns=STATE.coupons.filter(c=>(c.categories||[]).includes(cat));
+    if(refs.length)lines.push(`被 ${refs.length} 个活动按商品 ID 引用：${refs.map(x=>x.name).join("、")}`);
+    if(catActs.length||catCpns.length)lines.push(`品类「${cat||"-"}」关联 ${catActs.length} 个活动、${catCpns.length} 张券。`);
+    if(old.price&&draft.price&&Number(old.price)!==Number(draft.price))lines.push(`价格从 ${yuan(old.price)} 改为 ${yuan(draft.price)}，会影响推荐与算价结果。`);
+    if(draft.status==="下架")lines.push("商品下架后不会作为在售商品参与推荐。");
+  }else if(current==="activities"){
+    const pids=splitVals(draft.product_ids), cats=splitVals(draft.categories);
+    if(pids.length)lines.push(`将影响指定商品 ${pids.length} 个：${pids.join("、")}`);
+    if(cats.length)lines.push(`将影响品类 ${cats.length} 个：${cats.join("、")}`);
+    if(dateState(draft)[0]!=="生效中")lines.push(`当前日期判断为「${dateState(draft)[0]}」，算价时可能不会生效。`);
+  }else if(current==="coupons"){
+    const cats=splitVals(draft.categories);
+    lines.push(draft.scope==="all"?"全场可用券，可能影响所有推荐算价。":`品类券，影响范围：${cats.join("、")||"未填写"}`);
+    if(dateState(draft)[0]!=="生效中")lines.push(`当前日期判断为「${dateState(draft)[0]}」，推荐算价时可能不可用。`);
+  }
+  return lines.length?lines:["本次保存未发现明显关联影响。"];
+}
+function renderImpact(){
+  const lines=impactLines(formDraft());
+  $("#impactPreview").innerHTML=`<div class="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+    <div class="text-xs font-bold text-orange-700 mb-1"><i class="fa fa-bolt"></i> 保存前影响提示</div>
+    <ul class="text-xs text-slate-600 space-y-0.5">${lines.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
   </div>`;
 }
 
-function render(){
-  const q=($("#q").value||"").trim().toLowerCase(); const st=$("#st").value;
-  let rows=PRODS;
-  if(catSel) rows=rows.filter(p=>p.category===catSel);
-  if(st) rows=rows.filter(p=>p.status===st);
-  if(q) rows=rows.filter(p=>[p.name,p.spec,p.category].concat(p.tags||[]).join(" ").toLowerCase().includes(q));
-  $("#prodEmpty").classList.toggle("hidden",rows.length>0);
-  $("#prodGrid").innerHTML=rows.map(prodCard).join("")||"";
+function inputHtml([key,label,type,ph],val){
+  val=Array.isArray(val)?val.join(","):val??"";
+  if(type==="select")return `<label class="block"><span class="text-xs font-bold text-slate-500">${label}</span><select name="${key}" class="inp mt-1">${ph.split("|").map(x=>`<option ${String(val)===x?"selected":""}>${esc(x)}</option>`).join("")}</select></label>`;
+  if(type==="textarea")return `<label class="block md:col-span-2"><span class="text-xs font-bold text-slate-500">${label}</span><textarea name="${key}" rows="3" class="inp mt-1" placeholder="${esc(ph)}">${esc(val)}</textarea></label>`;
+  const productHint=key==="product_ids"?`<div class="mt-1 flex flex-wrap gap-1">${STATE.products.slice(0,10).map(p=>`<button type="button" onclick="pickProductId('${esc(p.id)}')" class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px]">${esc(p.id)} · ${esc(p.name)}</button>`).join("")}</div>`:"";
+  return `<label class="block"><span class="text-xs font-bold text-slate-500">${label}</span><input name="${key}" type="${type}" value="${esc(val)}" class="inp mt-1" placeholder="${esc(ph)}" ${key==="id"&&editing?"readonly":""}/>${productHint}</label>`;
 }
-
-function renderActs(){
-  const now=Date.now();
-  $("#actBody").innerHTML=ACTS.map(a=>{
-    const live=a.status!=="已结束"&&(!a.end||new Date(a.end).getTime()>=now-864e5);
-    const scope=a.product_ids&&a.product_ids.length?("指定 "+a.product_ids.length+" 款")
-      :(a.categories&&a.categories.length?("分类 "+a.categories.join("/")):"全场");
-    return `<tr class="border-t border-slate-50"><td class="p-2.5 pl-4 text-sm font-medium">${esc(a.name)}<div class="text-[10px] text-slate-400 mono">${esc(a.id)}</div></td>
-      <td class="p-2.5 text-sm">满 <b>${a.threshold??"–"}</b> 减 <b class="text-emerald-600">${a.value??"–"}</b></td>
-      <td class="p-2.5 text-[11px] text-slate-500">${esc(scope)}</td>
-      <td class="p-2.5"><span class="px-2 py-0.5 rounded-full text-[10px] ${live?"bg-emerald-50 text-emerald-600":"bg-slate-100 text-slate-400"}">${live?"进行中":esc(a.status||"已结束")}</span></td></tr>`;
-  }).join("")||`<tr><td class="p-6 text-center text-slate-400 text-sm">暂无活动</td></tr>`;
+function pickProductId(pid){
+  const inp=document.querySelector('[name="product_ids"]');
+  if(!inp)return;
+  const vals=splitVals(inp.value);
+  if(!vals.includes(pid))vals.push(pid);
+  inp.value=vals.join(",");
+  renderImpact();
 }
-
-function renderCpns(){
-  $("#cpnBody").innerHTML=CPNS.map(a=>{
-    const scope=a.categories&&a.categories.length?("分类 "+a.categories.join("/")):"全场";
-    return `<tr class="border-t border-slate-50"><td class="p-2.5 pl-4 text-sm font-medium">${esc(a.name)}<div class="text-[10px] text-slate-400 mono">${esc(a.id)}</div></td>
-      <td class="p-2.5 text-sm">满 <b>${a.condition??"–"}</b> 减 <b class="text-sky-600">${a.value??"–"}</b></td>
-      <td class="p-2.5 text-[11px] text-slate-500">${esc(scope)}</td>
-      <td class="p-2.5 text-[11px] text-slate-400">${esc(a.start||"")} ~ ${esc(a.end||"")}</td></tr>`;
-  }).join("")||`<tr><td class="p-6 text-center text-slate-400 text-sm">暂无优惠券</td></tr>`;
-}
-
-function stats(){
-  const on=PRODS.filter(p=>p.status==="在售");
-  $("#statProd").textContent=on.length+"/"+PRODS.length;
-  $("#statCat").textContent=cats.length;
-  const now=Date.now();
-  $("#statAct").textContent=ACTS.filter(a=>a.status!=="已结束"&&(!a.end||new Date(a.end).getTime()>=now-864e5)).length;
-  $("#statCpn").textContent=CPNS.length;
-  const sample=PRODS.find(p=>p.price<100);
-  if(sample) $("#examplePrice").textContent=sample.id+" 到手价 → 调 compute_price（示例 1×"+sample.price.toFixed(2)+"）";
-}
-
-async function load(){
-  const [pr,ac,cp]=await Promise.all([
-    fetch("/api/data/products").then(r=>r.json()),
-    fetch("/api/data/activities").then(r=>r.json()),
-    fetch("/api/data/coupons").then(r=>r.json()),
-  ]);
-  PRODS=pr.rows||[]; ACTS=ac.rows||[]; CPNS=cp.rows||[];
-  renderCats(); stats(); render(); renderActs(); renderCpns();
-}
-$("#q").addEventListener("input",render);
-$("#st").addEventListener("change",render);
+function openEditor(id){const cfg=CONFIG[current];editing=id||null;const row=id?(STATE[current].find(x=>String(x.id)===id)||{}):{};$("#modalTitle").textContent=(id?"编辑":"新增")+cfg.label;$("#formBody").innerHTML=cfg.fields.map(f=>inputHtml(f,row[f[0]])).join("");$("#modal").classList.remove("hidden");$("#modal").classList.add("flex");$("#formBody").querySelectorAll("input,select,textarea").forEach(el=>el.addEventListener("input",renderImpact));renderImpact()}
+function closeModal(){$("#modal").classList.add("hidden");$("#modal").classList.remove("flex");editing=null}
+$("#addBtn").onclick=()=>openEditor(null);$("#search").oninput=render;
+$("#exportBtn").onclick=()=>{
+  const rows=STATE[current]||[];
+  const blob=new Blob([JSON.stringify(rows,null,2)],{type:"application/json;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`snack-${current}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+};
+$("#importFile").onchange=async ev=>{
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file)return;
+  try{
+    const raw=await file.text();
+    const parsed=JSON.parse(raw);
+    const rows=Array.isArray(parsed)?parsed:(Array.isArray(parsed.rows)?parsed.rows:[]);
+    if(!rows.length)throw new Error("导入文件需要是 JSON 数组或 {rows:[...]}");
+    if(!confirm(`导入 ${rows.length} 条${CONFIG[current].label}？同 ID 会覆盖。`))return;
+    const cfg=CONFIG[current], existing=new Set((STATE[current]||[]).map(x=>String(x.id||"")));
+    let ok=0;
+    for(const row of rows){
+      const body={...row,actor:"catalog-import"};
+      const id=String(row.id||"").trim();
+      if(id&&existing.has(id)){
+        await api(`/api/data/${cfg.endpoint}/${encodeURIComponent(id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      }else{
+        await api(`/api/data/${cfg.endpoint}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      }
+      ok++;
+    }
+    toast(`导入完成：${ok} 条`);
+    await load();
+  }catch(e){toast("导入失败："+e.message,false)}
+  finally{ev.target.value=""}
+};
+$("#form").onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.currentTarget);const body={};for(const [k,v] of fd.entries())body[k]=v;body.actor="catalog-ui";try{const cfg=CONFIG[current];if(editing)await api(`/api/data/${cfg.endpoint}/${encodeURIComponent(editing)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});else await api(`/api/data/${cfg.endpoint}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});toast("已保存，Agent 将使用最新数据");closeModal();await load()}catch(e){toast(e.message,false)}};
+async function removeItem(id){const cfg=CONFIG[current];if(!confirm(`删除 ${id}？该操作会直接修改本地数据源。`))return;try{await api(`/api/data/${cfg.endpoint}/${encodeURIComponent(id)}`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({actor:"catalog-ui"})});toast("已删除");await load()}catch(e){toast(e.message,false)}}
 load().catch(e=>toast("加载失败："+e.message,false));
 </script>
 </body>

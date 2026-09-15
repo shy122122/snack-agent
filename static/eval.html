@@ -6,6 +6,7 @@
 <title>评测中心 · 评测集 / 单条测试 / 评测批次 / 版本对比</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<link rel="stylesheet" href="/static/brand.css"/>
 <style>
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
   ::-webkit-scrollbar{width:8px;height:8px}
@@ -777,6 +778,14 @@ async function renderCompare(){
     drawCompare(j);
   }catch(e){body.innerHTML=`<div class="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">${esc(e.message)}</div>`;}
 }
+async function issueRunToEval(runId){
+  if(!runId)return;
+  try{
+    const j=await post("/api/eval/cases/from-issue",{sourceType:"run",sourceId:runId});
+    toast("已生成回归用例："+((j.case&&j.case.name)||runId));
+    refresh();
+  }catch(e){toast(e.message,false);}
+}
 function statMini(s,label){
   const den=s.passed+s.failed+s.review;
   const rate=s.passRate!=null?s.passRate+"%":"-";
@@ -791,11 +800,19 @@ function statMini(s,label){
 function drawCompare(j){
   const body=$("#cmpBody");let h="";
   const verdict=j.verdict||"",ok=j.comparable;
+  const ds=j.deltas||[];
+  const stillFail=ds.filter(d=>d.prevStatus!=="PASS"&&d.curStatus!=="PASS"&&d.curStatus!=="ERROR").length;
   if(!ok){
     h+=`<div class="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 mb-2">
       <b><i class="fa fa-ban mr-1"></i>两批不可直接比较</b> —— 差异如下（不给出“版本更好”结论）：
       <ul class="list-disc pl-4 mt-1 text-[11px] space-y-0.5">${(j.blocks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
   }else{
+    h+=`<div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+      <div class="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5"><div class="text-[10px] text-emerald-600">已修复</div><div class="text-xl font-bold text-emerald-700">${j.counts.fixed||0}</div></div>
+      <div class="rounded-lg border border-rose-100 bg-rose-50 p-2.5"><div class="text-[10px] text-rose-600">新增失败</div><div class="text-xl font-bold text-rose-700">${j.counts.regressed||0}</div></div>
+      <div class="rounded-lg border border-amber-100 bg-amber-50 p-2.5"><div class="text-[10px] text-amber-600">仍需处理</div><div class="text-xl font-bold text-amber-700">${stillFail}</div></div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-2.5"><div class="text-[10px] text-slate-500">回复变化</div><div class="text-xl font-bold text-slate-700">${j.counts.replyChanged||0}</div></div>
+    </div>`;
     h+=`<div class="p-2.5 rounded-lg ${j.counts.regressed?"bg-rose-50 border border-rose-200 text-rose-700":"bg-emerald-50 border border-emerald-200 text-emerald-700"} mb-2">
       <b><i class="fa ${j.counts.regressed?"fa-exclamation-triangle":"fa-check-circle"} mr-1"></i>${esc(verdict)}</b>
       <span class="block text-[11px] mt-0.5">同用例集 + 同内容快照 + 同评分器，可对比 → 已修复 ${j.counts.fixed} · 新增失败 ${j.counts.regressed} · 状态变化 ${j.counts.statusChanged} · 回复变化 ${j.counts.replyChanged}</span>
@@ -813,7 +830,6 @@ function drawCompare(j){
       <ul class="pl-4 mt-1 space-y-0.5 text-[11px] text-slate-500">${[...(ctx.skillDiff||[]).map(x=>"Skill · "+x),...(ctx.toolDiff||[]).map(x=>"Tool · "+x)].map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`;
   }
   // deltas
-  const ds=j.deltas||[];
   if(!ds.length){h+=`<div class="text-slate-400">无逐例对比（批次可能为空）。</div>`;body.innerHTML=h;return;}
   h+=`<table class="w-full text-[11px] mt-1"><tbody>${ds.map(d=>{
     const flips=[];
@@ -834,7 +850,10 @@ function drawCompare(j){
         <div class="text-slate-400">耗时 ${msFmt(d.durPrev)}→${msFmt(d.durCur)}</div>
       </div></td>
       <td class="py-1.5">
-        ${d.curRunId?`<a href="/runs/${esc(d.curRunId)}" target="_blank" class="text-sky-600 underline mono text-[10px]">run:${esc(d.curRunId)}</a>`:`<span class="text-slate-300 text-[10px]">无 run</span>`}
+        <div class="flex flex-wrap gap-1 items-center">
+          ${d.curRunId?`<a href="/runs/${esc(d.curRunId)}" target="_blank" class="text-sky-600 underline mono text-[10px]">run:${esc(d.curRunId)}</a>`:`<span class="text-slate-300 text-[10px]">无 run</span>`}
+          ${d.curRunId&&d.curStatus!=="PASS"?`<button onclick="issueRunToEval('${esc(d.curRunId)}')" class="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200">生成回归用例</button>`:""}
+        </div>
         ${(change||d.prevRunId&&d.curRunId)?`<details class="mt-1"><summary class="cursor-pointer text-[10px] text-slate-400"><i class="fa fa-comment-o"></i> 回复对比</summary>
           <div class="mt-1 space-y-1">${d.prevReply?`<div class="rounded bg-slate-100 p-1.5"><span class="text-slate-400">base：</span><span class="text-slate-500">${esc(d.prevReply)}</span></div>`:""}${d.curReply?`<div class="rounded bg-white border border-slate-200 p-1.5"><span class="text-emerald-600">cur：</span><span>${esc(d.curReply)}</span></div>`:""}</div></details>`:""}
       </td>

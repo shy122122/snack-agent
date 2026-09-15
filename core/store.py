@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -36,12 +37,41 @@ def load_products():
     return read_json(DATA_DIR / "products.json", [])
 
 
+def save_products(rows) -> None:
+    write_json(DATA_DIR / "products.json", rows if isinstance(rows, list) else [])
+
+
 def load_activities():
     return read_json(DATA_DIR / "activities.json", [])
 
 
+def save_activities(rows) -> None:
+    write_json(DATA_DIR / "activities.json", rows if isinstance(rows, list) else [])
+
+
 def load_coupons():
     return read_json(DATA_DIR / "coupons.json", [])
+
+
+def save_coupons(rows) -> None:
+    write_json(DATA_DIR / "coupons.json", rows if isinstance(rows, list) else [])
+
+
+def load_catalog_changes(limit=80):
+    rows = read_json(DATA_DIR / "catalog_changes.json", [])
+    rows = rows if isinstance(rows, list) else []
+    return rows[:max(1, int(limit or 80))]
+
+
+def append_catalog_change(entry: dict) -> dict:
+    row = dict(entry or {})
+    row.setdefault("id", "chg_" + uuid.uuid4().hex[:10])
+    row.setdefault("createdAt", now_iso())
+    rows = read_json(DATA_DIR / "catalog_changes.json", [])
+    rows = rows if isinstance(rows, list) else []
+    rows.insert(0, row)
+    write_json(DATA_DIR / "catalog_changes.json", rows[:300])
+    return row
 
 
 def load_database():
@@ -577,4 +607,3 @@ def save_llm_state(provider: str | None = None, provider_config: dict | None = N
     state["updated_at"] = now_iso()
     write_json(_llm_state_file, state)
     return state
-

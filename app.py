@@ -11,6 +11,7 @@ import os
 import queue
 import sys
 import threading
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -139,6 +140,12 @@ def eval_page():
 def catalog_page():
     """商品目录：本地业务数据(商品/满减活动/优惠券)只读浏览，与 Agent Tool 同源。"""
     return send_from_directory(ROOT, "static/catalog.html")
+
+
+@app.get("/static/<path:filename>")
+def static_asset(filename):
+    """共享前端资产（品牌样式等）。页面本身仍通过显式路由返回。"""
+    return send_from_directory(ROOT / "static", filename)
 
 
 # ---------------------------------------------------------------- 健康 / 配置
@@ -343,12 +350,325 @@ def run_tool_alias(tid):
 
 
 # ---------------------------------------------------------------- 数据预览
+def _data_repo(kind):
+    repos = {
+        "products": (store.load_products, store.save_products, "P"),
+        "activities": (store.load_activities, store.save_activities, "A"),
+        "coupons": (store.load_coupons, store.save_coupons, "C"),
+    }
+    return repos.get(kind)
+
+
+def _as_list(v):
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if str(x).strip()]
+    if v is None:
+        return []
+    return [x.strip() for x in str(v).replace("，", ",").split(",") if x.strip()]
+
+
+def _num(v, default=None, integer=False):
+    if v in (None, ""):
+        return default
+    try:
+        n = float(v)
+        return int(n) if integer else n
+    except (TypeError, ValueError):
+        raise ValueError(f"数字字段格式不正确：{v}")
+
+
+def _next_id(rows, prefix):
+    nums = []
+    for r in rows:
+        rid = str((r or {}).get("id") or "")
+        if rid.startswith(prefix):
+            try:
+                nums.append(int(rid[len(prefix):]))
+            except ValueError:
+                pass
+    return f"{prefix}{(max(nums) if nums else 0) + 1:02d}"
+
+
+def _normalize_data_row(kind, row, *, rows=None, existing_id=None):
+    rows = rows or []
+    row = row if isinstance(row, dict) else {}
+    rid = (existing_id or row.get("id") or "").strip()
+    if not rid:
+        repo = _data_repo(kind)
+        rid = _next_id(rows, repo[2] if repo else "X")
+    if kind == "products":
+        name = (row.get("name") or "").strip()
+        if not name:
+            raise ValueError("商品名称不能为空")
+        price = _num(row.get("price"), 0)
+        if price < 0:
+            raise ValueError("商品价格不能为负数")
+        return {
+            "id": rid,
+            "name": name,
+            "category": (row.get("category") or "未分类").strip(),
+            "price": round(price, 2),
+            "spec": (row.get("spec") or "").strip(),
+            "tags": _as_list(row.get("tags")),
+            "sales": _num(row.get("sales"), 0, integer=True),
+            "stock": _num(row.get("stock"), 0, integer=True),
+            "rating": round(_num(row.get("rating"), 4.8), 1),
+            "status": (row.get("status") or "在售").strip(),
+        }
+    if kind == "activities":
+        name = (row.get("name") or "").strip()
+        if not name:
+            raise ValueError("活动名称不能为空")
+        return {
+            "id": rid,
+            "name": name,
+            "type": (row.get("type") or "满减").strip(),
+            "threshold": _num(row.get("threshold"), None),
+            "value": _num(row.get("value"), 0),
+            "scope": (row.get("scope") or "all").strip(),
+            "product_ids": _as_list(row.get("product_ids")),
+            "categories": _as_list(row.get("categories")),
+            "start": (row.get("start") or "").strip(),
+            "end": (row.get("end") or "").strip(),
+            "status": (row.get("status") or "进行中").strip(),
+            "description": (row.get("description") or "").strip(),
+        }
+    if kind == "coupons":
+        name = (row.get("name") or "").strip()
+        if not name:
+            raise ValueError("优惠券名称不能为空")
+        return {
+            "id": rid,
+            "name": name,
+            "type": (row.get("type") or "满减券").strip(),
+            "condition": _num(row.get("condition"), 0),
+            "value": _num(row.get("value"), 0),
+            "scope": (row.get("scope") or "all").strip(),
+            "categories": _as_list(row.get("categories")),
+            "start": (row.get("start") or "").strip(),
+            "end": (row.get("end") or "").strip(),
+            "description": (row.get("description") or "").strip(),
+        }
+    raise ValueError(f"未知数据: {kind}")
+
+
+def _catalog_change_summary(before, after):
+    before = before if isinstance(before, dict) else {}
+    after = after if isinstance(after, dict) else {}
+    keys = sorted(set(before.keys()) | set(after.keys()))
+    out = []
+    for k in keys:
+        if before.get(k) != after.get(k):
+            out.append({"field": k, "before": before.get(k), "after": after.get(k)})
+    return out
+
+
+def _log_catalog_change(kind, action, *, before=None, after=None):
+    item = after or before or {}
+    name = item.get("name") or item.get("id") or ""
+    return store.append_catalog_change({
+        "kind": kind,
+        "action": action,
+        "itemId": item.get("id"),
+        "itemName": name,
+        "actor": (_body().get("actor") or "catalog-admin") if request.method in ("POST", "PUT", "DELETE") else "catalog-admin",
+        "changes": _catalog_change_summary(before, after),
+    })
+
+
+def _parse_date(s):
+    if not s:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.strptime(str(s), "%Y-%m-%d").date()
+    except ValueError:
+        return "invalid"
+
+
+def _catalog_quality():
+    products, activities, coupons = store.load_products(), store.load_activities(), store.load_coupons()
+    issues = []
+
+    def add(level, kind, item_id, message, field="", action=""):
+        issues.append({
+            "level": level,
+            "kind": kind,
+            "itemId": item_id,
+            "field": field,
+            "message": message,
+            "action": action or "请在商品目录中复核并保存。",
+        })
+
+    def dup_check(kind, rows):
+        seen = set()
+        for r in rows:
+            rid = str((r or {}).get("id") or "").strip()
+            if not rid:
+                add("error", kind, "", "缺少 ID", "id", "补齐唯一 ID 后再保存。")
+            elif rid in seen:
+                add("error", kind, rid, "ID 重复，会导致编辑或引用歧义", "id", "为重复记录改成唯一 ID。")
+            seen.add(rid)
+
+    dup_check("products", products)
+    dup_check("activities", activities)
+    dup_check("coupons", coupons)
+
+    product_ids = {p.get("id") for p in products}
+    live_categories = {p.get("category") for p in products if p.get("status") == "在售"}
+    all_categories = {p.get("category") for p in products if p.get("category")}
+    for p in products:
+        pid = p.get("id")
+        if not (p.get("name") or "").strip():
+            add("error", "products", pid, "商品名称为空", "name", "补充商品名称，避免推荐话术缺失主体。")
+        if float(p.get("price") or 0) <= 0:
+            add("error", "products", pid, "商品价格必须大于 0", "price", "填写大于 0 的销售价。")
+        if int(p.get("stock") or 0) <= 0 and p.get("status") == "在售":
+            add("warning", "products", pid, "在售商品库存为 0，推荐可能不可履约", "stock", "补库存或将商品改为下架。")
+        if p.get("status") not in ("在售", "下架"):
+            add("warning", "products", pid, "商品状态建议使用「在售」或「下架」", "status", "统一状态枚举，避免筛选异常。")
+        if not p.get("category"):
+            add("warning", "products", pid, "商品未设置品类，会影响活动/券匹配", "category", "补充品类，方便活动与优惠券匹配。")
+
+    for a in activities:
+        aid = a.get("id")
+        if a.get("type") == "满减":
+            if float(a.get("threshold") or 0) <= 0:
+                add("error", "activities", aid, "满减活动门槛必须大于 0", "threshold", "填写有效满减门槛。")
+            if float(a.get("value") or 0) <= 0:
+                add("error", "activities", aid, "满减活动优惠力度必须大于 0", "value", "填写有效优惠金额。")
+        if a.get("type") == "折扣" and not (0 < float(a.get("value") or 0) < 1):
+            add("error", "activities", aid, "折扣活动 value 应为 0~1 之间的小数", "value", "折扣建议填写 0.8 这类小数。")
+        for pid in a.get("product_ids") or []:
+            if pid not in product_ids:
+                add("error", "activities", aid, f"活动引用了不存在的商品 {pid}", "product_ids", "删除无效商品 ID，或先补齐对应商品。")
+        for cat in a.get("categories") or []:
+            if cat not in all_categories:
+                add("warning", "activities", aid, f"活动品类「{cat}」当前没有商品", "categories", "调整活动品类或新增对应商品。")
+            elif cat not in live_categories:
+                add("warning", "activities", aid, f"活动品类「{cat}」当前没有在售商品", "categories", "确认是否需要恢复在售商品。")
+        sd, ed = _parse_date(a.get("start")), _parse_date(a.get("end"))
+        if sd == "invalid" or ed == "invalid":
+            add("error", "activities", aid, "活动日期格式应为 YYYY-MM-DD", "date", "按 YYYY-MM-DD 修正日期。")
+        elif sd and ed and sd > ed:
+            add("error", "activities", aid, "活动开始日期晚于结束日期", "date", "调整开始/结束日期顺序。")
+        elif ed and ed != "invalid" and ed < date.today():
+            add("warning", "activities", aid, "活动已过期，当前不会影响算价", "end", "如仍需演示，请延长活动结束日期。")
+
+    for c in coupons:
+        cid = c.get("id")
+        if float(c.get("condition") or 0) < 0:
+            add("error", "coupons", cid, "优惠券门槛不能为负数", "condition", "将门槛改为 0 或正数。")
+        if float(c.get("value") or 0) <= 0:
+            add("error", "coupons", cid, "优惠券面额必须大于 0", "value", "填写大于 0 的优惠金额。")
+        if float(c.get("value") or 0) > float(c.get("condition") or 0) and float(c.get("condition") or 0) > 0:
+            add("warning", "coupons", cid, "优惠券面额大于使用门槛，请确认是否为运营策略", "value", "确认是否为补贴券，否则调低面额。")
+        for cat in c.get("categories") or []:
+            if cat not in all_categories:
+                add("warning", "coupons", cid, f"优惠券品类「{cat}」当前没有商品", "categories", "调整券适用品类或新增对应商品。")
+            elif cat not in live_categories:
+                add("warning", "coupons", cid, f"优惠券品类「{cat}」当前没有在售商品", "categories", "确认是否需要恢复在售商品。")
+        sd, ed = _parse_date(c.get("start")), _parse_date(c.get("end"))
+        if sd == "invalid" or ed == "invalid":
+            add("error", "coupons", cid, "优惠券日期格式应为 YYYY-MM-DD", "date", "按 YYYY-MM-DD 修正日期。")
+        elif sd and ed and sd > ed:
+            add("error", "coupons", cid, "优惠券开始日期晚于结束日期", "date", "调整开始/结束日期顺序。")
+        elif ed and ed != "invalid" and ed < date.today():
+            add("warning", "coupons", cid, "优惠券已过期，当前不会参与推荐算价", "end", "如仍需演示，请延长优惠券结束日期。")
+
+    counts = {
+        "error": sum(1 for x in issues if x["level"] == "error"),
+        "warning": sum(1 for x in issues if x["level"] == "warning"),
+    }
+    affected = {}
+    for x in issues:
+        affected.setdefault(x["kind"], set()).add(x.get("itemId") or "")
+    return {
+        "ok": counts["error"] == 0,
+        "counts": counts,
+        "issues": issues,
+        "affected": {k: sorted(v) for k, v in affected.items()},
+        "recommendations": [x["action"] for x in issues[:6]],
+        "checkedAt": store.now_iso(),
+    }
+
+
 @app.get("/api/data/<kind>")
 def data_kind(kind):
-    loader = {"products": store.load_products, "activities": store.load_activities, "coupons": store.load_coupons}
-    if kind not in loader:
+    repo = _data_repo(kind)
+    if not repo:
         return _fail(f"未知数据: {kind}")
-    return jsonify({"ok": True, "kind": kind, "rows": loader[kind]()})
+    return jsonify({"ok": True, "kind": kind, "rows": repo[0]()})
+
+
+@app.get("/api/data/changes")
+def data_changes():
+    limit = request.args.get("limit", default=60, type=int)
+    kind = (request.args.get("kind") or "").strip()
+    rows = store.load_catalog_changes(limit=max(1, min(limit, 200)))
+    if kind:
+        rows = [r for r in rows if r.get("kind") == kind]
+    return jsonify({"ok": True, "changes": rows[:limit]})
+
+
+@app.get("/api/data/quality")
+def data_quality():
+    return jsonify({"ok": True, "quality": _catalog_quality()})
+
+
+@app.post("/api/data/<kind>")
+def data_create(kind):
+    repo = _data_repo(kind)
+    if not repo:
+        return _fail(f"未知数据: {kind}")
+    load, save, _prefix = repo
+    rows = load()
+    try:
+        item = _normalize_data_row(kind, _body(), rows=rows)
+        if any(str(r.get("id")) == item["id"] for r in rows):
+            return _fail(f"id 已存在：{item['id']}")
+        rows.append(item)
+        save(rows)
+        change = _log_catalog_change(kind, "create", after=item)
+        return jsonify({"ok": True, "kind": kind, "item": item, "rows": rows, "change": change})
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.put("/api/data/<kind>/<rid>")
+def data_update(kind, rid):
+    repo = _data_repo(kind)
+    if not repo:
+        return _fail(f"未知数据: {kind}")
+    load, save, _prefix = repo
+    rows = load()
+    try:
+        item = _normalize_data_row(kind, {**_body(), "id": rid}, rows=rows, existing_id=rid)
+        for i, old in enumerate(rows):
+            if str(old.get("id")) == rid:
+                rows[i] = item
+                save(rows)
+                change = _log_catalog_change(kind, "update", before=old, after=item)
+                return jsonify({"ok": True, "kind": kind, "item": item, "rows": rows, "change": change})
+        return _fail(f"未找到 id：{rid}", 404)
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.delete("/api/data/<kind>/<rid>")
+def data_delete(kind, rid):
+    repo = _data_repo(kind)
+    if not repo:
+        return _fail(f"未知数据: {kind}")
+    load, save, _prefix = repo
+    rows = load()
+    kept = [r for r in rows if str(r.get("id")) != rid]
+    if len(kept) == len(rows):
+        return _fail(f"未找到 id：{rid}", 404)
+    old = next((r for r in rows if str(r.get("id")) == rid), None)
+    save(kept)
+    change = _log_catalog_change(kind, "delete", before=old)
+    return jsonify({"ok": True, "kind": kind, "deleted": rid, "rows": kept, "change": change})
 
 
 # ---------------------------------------------------------------- Agent 执行
@@ -379,10 +699,7 @@ def agent_abilities():
     })
 
 
-@app.get("/api/provider/status")
-def provider_status():
-    """当前生效的 LLM Provider 状态（页面顶部徽标 / 冒烟脚本用）。
-    跟随 env SNACK_LLM_PROVIDER 权威选择；未设时反映后台 /models 已切换的 provider(llm_state)。"""
+def _provider_status_payload():
     name = providers.effective_provider_name()
     demo = name == "demo-fixture"
     ready = providers._provider_ready(name)
@@ -400,9 +717,130 @@ def provider_status():
             hint = "未配置 COZE_API_KEY / COZE_BOT_ID，请在「模型设置」填写或设置 SNACK_LLM_PROVIDER=demo-fixture 切演示"
         else:
             hint = "未配置 API Key：请在「模型设置」填写，或设置 SNACK_LLM_PROVIDER=demo-fixture 切演示"
-    return jsonify({"ok": True, "provider": name, "label": labels.get(name, name),
-                    "model": model, "demo": demo, "llm_ready": ready, "hint": hint,
-                    "stable_demo": demo})
+    return {"provider": name, "label": labels.get(name, name),
+            "model": model, "demo": demo, "llm_ready": ready, "hint": hint,
+            "stable_demo": demo}
+
+
+@app.get("/api/provider/status")
+def provider_status():
+    """当前生效的 LLM Provider 状态（页面顶部徽标 / 冒烟脚本用）。
+    跟随 env SNACK_LLM_PROVIDER 权威选择；未设时反映后台 /models 已切换的 provider(llm_state)。"""
+    return jsonify({"ok": True, **_provider_status_payload()})
+
+
+def _batch_public_stats(batch):
+    if not batch:
+        return None
+    res = batch.get("caseResults") or []
+    counts = {k: sum(1 for r in res if r.get("status") == k)
+              for k in ("PASS", "FAIL", "REVIEW", "ERROR")}
+    denom = counts["PASS"] + counts["FAIL"] + counts["REVIEW"]
+    return {
+        "id": batch.get("id"),
+        "name": batch.get("name") or "",
+        "versionLabel": batch.get("versionLabel") or "",
+        "changeNote": batch.get("changeNote") or "",
+        "status": batch.get("status"),
+        "createdAt": batch.get("createdAt"),
+        "finishedAt": batch.get("finishedAt"),
+        "total": len(res) or batch.get("total") or len(batch.get("caseIds") or []),
+        "passed": counts["PASS"],
+        "failed": counts["FAIL"],
+        "review": counts["REVIEW"],
+        "errors": counts["ERROR"],
+        "passRate": round(100.0 * counts["PASS"] / denom, 1) if denom else None,
+    }
+
+
+def _console_decision(provider, quality, ops, latest_batch, comparison, active_batch_id):
+    blockers = []
+    warnings = []
+    if not provider.get("llm_ready") and not provider.get("demo"):
+        blockers.append("真实 Provider 未配置完成")
+    if (quality.get("counts") or {}).get("error", 0):
+        blockers.append(f"目录存在 {quality['counts']['error']} 个阻断问题")
+    if active_batch_id:
+        warnings.append("评测批次正在运行")
+    if latest_batch:
+        if latest_batch.get("failed", 0) or latest_batch.get("errors", 0):
+            warnings.append(f"最近评测仍有 {latest_batch.get('failed', 0)} 个失败、{latest_batch.get('errors', 0)} 个异常")
+        if latest_batch.get("review", 0):
+            warnings.append(f"最近评测有 {latest_batch.get('review', 0)} 个需复核")
+    else:
+        warnings.append("还没有可用于上线判断的评测批次")
+    metrics = ops.get("metrics") or {}
+    if metrics.get("failedSteps", 0):
+        warnings.append(f"运行记录中有 {metrics.get('failedSteps')} 个失败步骤")
+    if metrics.get("ratings", {}).get("low", 0):
+        warnings.append(f"存在 {metrics['ratings']['low']} 条低分反馈")
+    if comparison and (comparison.get("counts") or {}).get("regressed", 0):
+        warnings.append(f"版本对比新增失败 {comparison['counts']['regressed']} 例")
+
+    if blockers:
+        state, label, reason = "blocked", "不建议上线", "；".join(blockers[:3])
+    elif warnings:
+        state, label, reason = "review", "建议复核", "；".join(warnings[:3])
+    else:
+        state, label, reason = "ready", "可演示", "目录、模型、评测与运营记录未发现明显阻断项"
+    return {"state": state, "label": label, "reason": reason,
+            "blockers": blockers, "warnings": warnings}
+
+
+@app.get("/api/console/summary")
+def console_summary():
+    """总控台首页：聚合目录健康、Provider、运营问题与评测批次，输出上线决策。"""
+    try:
+        provider = _provider_status_payload()
+        quality = _catalog_quality()
+        ops = ops_mod.build_overview(recent=8)
+        changes = store.load_catalog_changes(limit=8)
+        batches = eval_batch_mod.list_batches(limit=8)
+        done = [b for b in batches if b.get("status") == "done"]
+        latest = _batch_public_stats(done[0] if done else (batches[0] if batches else None))
+        previous = _batch_public_stats(done[1] if len(done) > 1 else None)
+        comparison = None
+        if len(done) > 1:
+            try:
+                comparison = eval_batch_mod.compare_batches(done[1]["id"], done[0]["id"])
+            except Exception:
+                comparison = None
+        active = eval_batch_mod.active_batch_id()
+        decision = _console_decision(provider, quality, ops, latest, comparison, active)
+        clusters = [c for c in (ops.get("clusters") or []) if c.get("key") != "empty"]
+        next_actions = []
+        if decision["state"] == "blocked":
+            next_actions.append({"label": "先修复目录或模型配置", "target": "/console#catalog"})
+        if latest and (latest.get("failed") or latest.get("review") or latest.get("errors")):
+            next_actions.append({"label": "查看评测失败并沉淀改进", "target": "/console#eval"})
+        if clusters:
+            next_actions.append({"label": "处理运营问题样本", "target": "/console#ops"})
+        if not next_actions:
+            next_actions.append({"label": "复跑默认评测集确认稳定", "target": "/console#eval"})
+        return jsonify({
+            "ok": True,
+            "decision": decision,
+            "provider": provider,
+            "catalogQuality": quality,
+            "catalogChanges": changes,
+            "ops": {
+                "metrics": ops.get("metrics") or {},
+                "riskByType": ops.get("riskByType") or [],
+                "clusters": clusters[:4],
+                "recentRuns": ops.get("recentRuns") or [],
+            },
+            "eval": {
+                "latest": latest,
+                "previous": previous,
+                "comparison": comparison,
+                "activeBatchId": active,
+                "lastCaseIds": eval_batch_mod.last_case_ids(),
+                "evaluator": eval_mod.evaluator_snapshot(),
+            },
+            "nextActions": next_actions,
+        })
+    except Exception as e:
+        return _fail(f"总控台摘要生成失败：{e}")
 
 
 @app.post("/api/agent/plan")
@@ -1033,6 +1471,100 @@ def eval_list():
         "tools": tools_list,
         "enabledIds": eval_mod.default_enabled_set(),
     })
+
+
+def _default_case_fields_from_issue(source_type, source_id, *, question="", title="", note="", run=None):
+    risk = (run or {}).get("risk") or (run or {}).get("riskResult") or {}
+    is_risk = bool(risk.get("isRisky")) or source_type == "risk"
+    problem = note or title or ""
+    category = "风险安全" if is_risk else ("价格核验" if "价格" in problem or "金额" in problem else "合规回复")
+    dims = ["risk_response", "reply_safety"] if is_risk else (["price_honesty", "accuracy"] if category == "价格核验" else ["accuracy", "completeness", "reply_safety"])
+    fields = {
+        "name": title or f"由{source_type}沉淀 · {str(question or source_id)[:18]}",
+        "question": question,
+        "category": category,
+        "difficulty": "medium",
+        "riskLevel": "high" if is_risk else "mid",
+        "expectedBehavior": note or "由运营问题样本沉淀，需走真实 Agent 主链路并输出可追溯、合规的客服回复。",
+        "evalDimension": dims,
+        "tags": ["ops_issue", source_type],
+        "enabled": True,
+    }
+    if is_risk:
+        fields.update({
+            "expectRisk": True,
+            "forbiddenCapabilities": ["query_products", "query_coupons", "query_activities", "compute_price"],
+            "expectedKeywords": [{"words": ["官方", "诈骗", "不要"], "mode": "any"}],
+        })
+    return fields
+
+
+def _case_from_issue_payload(b):
+    source_type = (b.get("sourceType") or b.get("source_type") or "").strip()
+    source_id = (b.get("sourceId") or b.get("source_id") or "").strip()
+    fields = b.get("fields") if isinstance(b.get("fields"), dict) else {}
+    if source_type not in ("run", "rating", "annotation", "improvement", "risk"):
+        raise ValueError("sourceType 必须为 run/rating/annotation/improvement/risk")
+    if not source_id:
+        raise ValueError("sourceId 不能为空")
+
+    run_id = None
+    question = ""
+    title = ""
+    note = ""
+    if source_type in ("run", "risk"):
+        run_id = source_id
+        run = store.get_run(run_id)
+        if not run:
+            raise ValueError("运行记录不存在")
+        question = run.get("question") or ""
+        title = f"由运行沉淀 · {question[:18]}"
+        note = "运行样本需要进入回归评测，验证后续改进是否稳定。"
+    elif source_type == "rating":
+        row = next((r for r in reversed(ops_mod._rows("rating")) if r.get("id") == source_id), None)
+        if not row:
+            raise ValueError("评分记录不存在")
+        run_id = row.get("runId")
+        question = row.get("question") or ""
+        title = f"低分反馈 · {row.get('problemType') or '服务质量'}"
+        note = row.get("comment") or f"来源评分 {row.get('score')} 分，问题类型：{row.get('problemType') or '未分类'}。"
+    elif source_type == "annotation":
+        row = ops_mod.get_annotation(source_id)
+        if not row:
+            raise ValueError("标注记录不存在")
+        run_id = row.get("runId")
+        question = row.get("question") or ""
+        overall = (row.get("dimensions") or {}).get("overall")
+        title = f"人工标注 · 整体{overall if overall is not None else '-'}分"
+        note = row.get("note") or "来源人工标注，需回归验证回复正确性、完整性与安全性。"
+    else:
+        row = ops_mod.get_improvement(source_id)
+        if not row:
+            raise ValueError("改进建议不存在")
+        run_id = (row.get("sampleRunIds") or [None])[0]
+        run = store.get_run(run_id) if run_id else None
+        question = (run or {}).get("question") or row.get("title") or ""
+        title = f"改进建议回归 · {row.get('title') or source_id}"
+        note = row.get("directionText") or "改进建议应用后需要回归验证。"
+
+    run = store.get_run(run_id) if run_id else None
+    base = _default_case_fields_from_issue(source_type, source_id, question=question,
+                                           title=title, note=note, run=run)
+    base.update(fields)
+    if run_id and store.get_run(run_id):
+        return eval_mod.from_run(run_id, base)
+    return eval_mod.create_case(base)
+
+
+@app.post("/api/eval/cases/from-issue")
+def eval_case_from_issue():
+    try:
+        c = _case_from_issue_payload(_body())
+        return jsonify({"ok": True, "case": c})
+    except ValueError as e:
+        return _fail(str(e), 400)
+    except Exception as e:
+        return _fail(f"沉淀评测用例失败：{e}")
 
 
 @app.get("/api/eval/cases/<cid>")

@@ -6,6 +6,7 @@
 <title>零食电商客服 · Agent 工作台</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<link rel="stylesheet" href="/static/brand.css"/>
 <style>
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
   .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
@@ -29,7 +30,7 @@
     <nav class="flex items-center gap-1 text-sm">
       <a href="/" class="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium">工作台</a>
       <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">演示</a>
-      <a href="/console" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">总控台</a>
+      <a href="/console#work" class="px-3 py-1.5 rounded-lg hover:bg-slate-100">总控台</a>
     </nav>
   </div>
 </header>
@@ -65,6 +66,29 @@
         </label>
         <span id="runState" class="text-xs text-slate-400"></span>
       </div>
+    </section>
+
+    <!-- 质检结论 -->
+    <section id="qualityCard" class="hidden bg-slate-950 text-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="p-4 border-b border-white/10 flex flex-wrap items-start gap-3">
+        <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center shrink-0"><i id="qualityIcon" class="fa fa-circle-o-notch fa-spin text-slate-300"></i></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-semibold text-sm">本轮质检结论</h2>
+            <span id="qualityBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-slate-200 border border-white/10">运行中</span>
+          </div>
+          <p id="qualitySummary" class="mt-1 text-sm text-slate-300 leading-6">正在收集规划、工具、风控与回复证据。</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="saveEvalBtn" disabled class="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/15">
+            <i class="fa fa-flask"></i> 加入评测集
+          </button>
+          <a id="qualityRunLink" href="#" class="hidden inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-400">
+            <i class="fa fa-external-link"></i> 查看记录
+          </a>
+        </div>
+      </div>
+      <div id="qualityEvidence" class="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/10 text-xs"></div>
     </section>
 
     <!-- 计划 -->
@@ -126,6 +150,7 @@
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+let RUN={plan:null,steps:[],reply:null,risk:null,errors:[],done:null,runId:null,question:""};
 
 /* ---------------- Provider 状态 ---------------- */
 fetch("/api/provider/status").then(r=>r.json()).then(p=>{
@@ -165,17 +190,30 @@ document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{$("#q").value=b.dat
 /* ---------------- SSE 事件处理 ---------------- */
 function handle(ev, data){
   if(ev==="plan"){
+    RUN.plan=data;
     renderPlan(data);
+    renderQuality();
   }else if(ev==="step"){
+    RUN.steps.push(data);
     addStep(data);
+    renderQuality();
   }else if(ev==="reply"){
+    RUN.reply=data;
     renderReply(data);
+    renderQuality();
   }else if(ev==="risk"){
+    RUN.risk=data;
     renderRisk(data);
+    renderQuality();
   }else if(ev==="error"){
+    RUN.errors.push(data);
     showError(data.message||"未知错误", data.errors, null);
+    renderQuality();
   }else if(ev==="done"){
+    RUN.done=data;
+    RUN.runId=data.runId;
     onDone(data);
+    renderQuality();
   }
 }
 
@@ -259,15 +297,123 @@ function showError(msg, errors, tone){
 
 function setState(t){ $("#runState").innerHTML=t; }
 
+function qualityTone(kind){
+  const map={
+    ok:["fa-check-circle","可发送","bg-emerald-400/15 text-emerald-200 border-emerald-300/20"],
+    review:["fa-eye","建议复核","bg-amber-400/15 text-amber-200 border-amber-300/20"],
+    blocked:["fa-ban","已拦截","bg-rose-400/15 text-rose-200 border-rose-300/20"],
+    running:["fa-circle-o-notch fa-spin","运行中","bg-white/10 text-slate-200 border-white/10"]
+  };
+  return map[kind]||map.running;
+}
+
+function inferQuality(){
+  const done=RUN.done||{}, reply=RUN.reply||{}, plan=RUN.plan||{}, risk=RUN.risk||done.risk||{};
+  const steps=RUN.steps||[];
+  const failed=steps.filter(s=>s.status==="error");
+  const okSteps=steps.filter(s=>s.status==="ok");
+  const priceStep=steps.find(s=>s.id==="compute_price"&&s.status==="ok");
+  const hasPriceIntent=/价|优惠|券|满减|凑单|预算|多少钱|合计|实付|到手/.test(RUN.question||"");
+  const riskHit=!!(risk&&risk.isRisky);
+  const blocked=!!(reply&&reply.blocked);
+  let kind="running";
+  if(done.status==="error"||blocked) kind="blocked";
+  else if(done.status==="degraded"||failed.length||RUN.errors.length) kind="review";
+  else if(done.status==="ok") kind="ok";
+  const summary=kind==="ok"
+    ? "本轮回复可作为客服候选答案：关键步骤完成，最终回复已通过风控链路。"
+    : kind==="review"
+      ? "本轮可以留作分析样本，但建议人工复核后再发给用户。"
+      : kind==="blocked"
+        ? "本轮不应直接发送：系统已发现错误、拦截或高风险信号。"
+        : "正在收集规划、工具、风控与回复证据。";
+  const evidence=[
+    {
+      title:"链路完整性",
+      icon:"fa-sitemap",
+      text:done.status?`状态 ${done.status} · 成功 ${okSteps.length} 步${failed.length?` · 失败 ${failed.length} 步`:""}`:`已规划 ${(plan.steps||[]).length||0} 步，执行中`
+    },
+    {
+      title:"价格可信度",
+      icon:"fa-calculator",
+      text:hasPriceIntent?(priceStep?"涉及价格，已由 compute_price 计算":"涉及价格，但暂未看到算价工具成功证据"):"本轮未明显涉及价格计算"
+    },
+    {
+      title:"安全策略",
+      icon:"fa-shield",
+      text:riskHit?"命中风险，销售/算价链路应被限制":"未命中高风险词，仍保留最终风控审核"
+    }
+  ];
+  return {kind,summary,evidence};
+}
+
+function renderQuality(){
+  $("#qualityCard").classList.remove("hidden");
+  const q=inferQuality();
+  const tone=qualityTone(q.kind);
+  $("#qualityIcon").className=`fa ${tone[0]} text-lg ${q.kind==="ok"?"text-emerald-300":q.kind==="review"?"text-amber-300":q.kind==="blocked"?"text-rose-300":"text-slate-300"}`;
+  $("#qualityBadge").textContent=tone[1];
+  $("#qualityBadge").className=`text-[10px] px-2 py-0.5 rounded-full border ${tone[2]}`;
+  $("#qualitySummary").textContent=q.summary;
+  $("#qualityEvidence").innerHTML=q.evidence.map(x=>`<div class="p-3">
+    <div class="flex items-center gap-1.5 text-slate-400"><i class="fa ${x.icon}"></i>${esc(x.title)}</div>
+    <p class="mt-1 text-slate-100 leading-5">${esc(x.text)}</p>
+  </div>`).join("");
+  const link=$("#qualityRunLink");
+  if(RUN.runId){
+    link.href="/runs/"+encodeURIComponent(RUN.runId);
+    link.classList.remove("hidden");
+  }else{
+    link.href="#";
+    link.classList.add("hidden");
+  }
+  $("#saveEvalBtn").disabled=!RUN.runId;
+}
+
+function resetQualityActions(){
+  const btn=$("#saveEvalBtn");
+  btn.disabled=true;
+  btn.innerHTML='<i class="fa fa-flask"></i> 加入评测集';
+  btn.className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/15";
+  const link=$("#qualityRunLink");
+  link.href="#";
+  link.classList.add("hidden");
+}
+
+async function saveRunToEval(){
+  if(!RUN.runId) return;
+  const btn=$("#saveEvalBtn");
+  const old=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 写入中';
+  try{
+    const res=await fetch("/api/eval/cases",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fromRunId:RUN.runId})});
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok||j.ok===false) throw new Error(j.error||"写入失败");
+    btn.innerHTML='<i class="fa fa-check"></i> 已加入评测集';
+    btn.classList.remove("bg-white/10","text-slate-300");
+    btn.classList.add("bg-emerald-500/20","text-emerald-100");
+    $("#runState").innerHTML+=` → <a class="text-orange-500 underline" href="/eval">去评测中心查看</a>`;
+  }catch(e){
+    btn.disabled=false;
+    btn.innerHTML=old;
+    showError("加入评测集失败："+(e.message||e));
+  }
+}
+
+$("#saveEvalBtn").onclick=saveRunToEval;
+
 /* ---------------- 发起运行（SSE）---------------- */
 async function runQuestion(){
   const q=$("#q").value.trim();
   if(!q) return;
   const fault=$("#fault").checked;
   const faultTool=fault?"compute_price":null;
+  RUN={plan:null,steps:[],reply:null,risk:null,errors:[],done:null,runId:null,question:q};
+  resetQualityActions();
   $("#runBtn").disabled=true;
   $("#runState").innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 规划中…';
-  ["planCard","traceCard","replyCard","riskCard","errorCard"].forEach(id=>$("#"+id).classList.add("hidden"));
+  ["planCard","traceCard","replyCard","riskCard","errorCard","qualityCard"].forEach(id=>$("#"+id).classList.add("hidden"));
   $("#traceBox").innerHTML=""; stepSeq=0;
   const $q=$("#q"); $q.readOnly=true;
   try{

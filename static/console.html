@@ -3,103 +3,386 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>零食电商客服 · 总控台（工作台 / 演示 / 管理后台）</title>
+<title>零食电商客服 · 总控台</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"/>
+<link rel="stylesheet" href="/static/brand.css"/>
 <style>
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
-  .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  .module-btn{transition:background .15s ease,color .15s ease,border-color .15s ease}
+  .overview-card{background:#fff;border:1px solid #dbe2ea;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.055)}
+  .overview-label{font-size:11px;color:#64748b;font-weight:700}
+  .overview-link{display:inline-flex;align-items:center;gap:6px;border-radius:8px;border:1px solid #dbe2ea;background:#fff;padding:8px 10px;font-size:12px;color:#334155}
+  .overview-link:hover{border-color:#fed7aa;background:#fff7ed;color:#c2410c}
+  .decision-panel{background:linear-gradient(135deg,#111827,#1e293b 62%,#7c2d12);border-radius:8px;color:white;box-shadow:0 18px 42px rgba(15,23,42,.18)}
+  .metric-row{display:grid;grid-template-columns:minmax(92px,.8fr) 1fr;gap:8px;align-items:center}
 </style>
 </head>
-<body class="bg-slate-900 text-slate-200 h-screen flex flex-col overflow-hidden">
-<header class="bg-slate-900 border-b border-white/10 shrink-0">
-  <div class="max-w-[1600px] mx-auto px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-    <div class="flex items-center gap-2.5 min-w-0 mr-auto">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-white grid place-items-center shrink-0 shadow"><i class="fa fa-shopping-basket"></i></div>
-      <div class="min-w-0 leading-tight">
-        <h1 class="font-bold text-sm text-white truncate">零食电商客服 · 总控台</h1>
-        <p class="text-[11px] text-slate-400 truncate">Planner→Validator→Skill/Tool→风控→RunRecord · 同一 Agent 主链路</p>
-      </div>
+<body class="h-screen flex flex-col overflow-hidden bg-slate-950 text-slate-200">
+<header class="bg-slate-950 border-b border-white/10 shrink-0">
+  <div class="max-w-[1680px] mx-auto px-3 sm:px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <a href="/console" class="w-9 h-9 rounded-lg bg-orange-500 text-white grid place-items-center shrink-0 shadow" title="总控台首页"><i class="fa fa-shopping-basket"></i></a>
+    <div class="min-w-0 mr-auto leading-tight">
+      <h1 class="font-bold text-sm text-white truncate">零食电商客服 · 总控台</h1>
+      <p id="moduleHint" class="text-[11px] text-slate-400 truncate">同一 Agent 主链路下的演示、工作台、运营与管理入口</p>
     </div>
 
-    <nav id="nav" class="flex flex-wrap items-center gap-1 text-sm" role="tablist" aria-label="总控台模块切换"></nav>
+    <nav id="nav" class="brand-nav flex flex-wrap items-center gap-1 text-sm" role="tablist" aria-label="总控台模块切换"></nav>
 
     <div class="flex items-center gap-1.5 shrink-0 text-xs">
-      <a id="openNew" target="_blank" rel="noopener" class="px-2 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 inline-flex items-center gap-1"
+      <a id="openNew" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/10 inline-flex items-center gap-1"
          title="在新窗口打开当前模块"><i class="fa fa-external-link"></i> <span class="hidden sm:inline">独立页</span></a>
     </div>
   </div>
 </header>
 
-<main class="flex-1 min-h-0 relative bg-slate-100">
+<main class="flex-1 min-h-0 bg-slate-100 relative">
+  <div id="loading" class="absolute inset-0 grid place-items-center text-slate-500 text-sm">
+    <div class="brand-shell px-4 py-3"><i class="fa fa-circle-o-notch fa-spin text-orange-500"></i> 正在加载模块…</div>
+  </div>
+  <section id="overviewPane" class="hidden absolute inset-0 overflow-auto bg-slate-100">
+    <div class="max-w-[1680px] mx-auto px-4 py-4 space-y-4">
+      <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
+        <div id="decisionHero" class="decision-panel p-5 sm:p-6"></div>
+        <section class="overview-card p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">建议下一步</h2>
+            <button id="refreshSummary" class="ml-auto px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50" title="刷新"><i class="fa fa-refresh"></i></button>
+          </div>
+          <div id="nextActions" class="space-y-2"></div>
+        </section>
+      </div>
+      <div class="grid grid-cols-1 gap-4">
+        <section class="overview-card p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">上线门禁</h2>
+            <span id="gateMeta" class="text-[11px] text-slate-400"></span>
+          </div>
+          <div id="gateGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3"></div>
+        </section>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <section class="overview-card p-4 xl:col-span-2">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">评测回归摘要</h2>
+            <a href="/console#eval" class="ml-auto text-xs text-orange-600 hover:underline">进入评测中心</a>
+          </div>
+          <div id="evalSummary"></div>
+        </section>
+        <section class="overview-card p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">目录健康</h2>
+            <a href="/console#catalog" class="ml-auto text-xs text-orange-600 hover:underline">进入商品目录</a>
+          </div>
+          <div id="catalogSummary"></div>
+        </section>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <section class="overview-card p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">运营问题样本</h2>
+            <a href="/console#ops" class="ml-auto text-xs text-orange-600 hover:underline">进入运营中心</a>
+          </div>
+          <div id="opsIssues"></div>
+        </section>
+        <section class="overview-card p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <h2 class="font-bold text-sm text-slate-700">最近目录变更</h2>
+            <span class="text-[11px] text-slate-400">商品、活动、优惠券</span>
+          </div>
+          <div id="catalogChanges"></div>
+        </section>
+      </div>
+    </div>
+  </section>
   <div id="panes" class="absolute inset-0"></div>
 </main>
 
 <script>
-// 两个分区：应用（工作台/演示）+ 管理后台（技能/工具/规划器/模型）
 const GROUPS=[
-  {label:null, items:[
-    {key:"work",  label:"工作台",  icon:"fa-shopping-basket", url:"/agent?embed=1"},
-    {key:"demo",  label:"演示",    icon:"fa-comments-o",      url:"/demo?embed=1"},
-    {key:"catalog",label:"商品目录", icon:"fa-sitemap",        url:"/catalog?embed=1"},
+  {label:"总览", items:[
+    {key:"overview",label:"决策看板",icon:"fa-dashboard",url:null,hint:"上线门禁、评测回归、目录健康和运营问题闭环"},
+  ]},
+  {label:"前台", items:[
+    {key:"work",label:"工作台",icon:"fa-shopping-basket",url:"/agent?embed=1",hint:"客服问题处理、质检结论、Trace 与 RunRecord 入口"},
+    {key:"demo",label:"演示",icon:"fa-comments-o",url:"/demo?embed=1",hint:"面向评审和业务方的一键演示对话入口"},
   ]},
   {label:"运营", items:[
-    {key:"ops",  label:"运营中心", icon:"fa-line-chart", url:"/ops?embed=1"},
-    {key:"eval", label:"评测中心", icon:"fa-flask",     url:"/eval?embed=1"},
+    {key:"catalog",label:"商品目录",icon:"fa-sitemap",url:"/catalog?embed=1",hint:"查看商品、活动与优惠券基础数据"},
+    {key:"ops",label:"运营中心",icon:"fa-line-chart",url:"/ops?embed=1",hint:"运行监控、服务评分、标注与改进建议"},
+    {key:"eval",label:"评测中心",icon:"fa-flask",url:"/eval?embed=1",hint:"用例管理、单条测试、批次回归和版本对比"},
   ]},
-  {label:"管理后台", items:[
-    {key:"skills",  label:"技能",   icon:"fa-cubes",    url:"/skills?embed=1"},
-    {key:"tools",   label:"工具",   icon:"fa-wrench",   url:"/tools?embed=1"},
-    {key:"planner", label:"规划器", icon:"fa-map-signs",url:"/planner?embed=1"},
-    {key:"models",  label:"模型",   icon:"fa-cube",     url:"/models?embed=1"},
+  {label:"配置", items:[
+    {key:"skills",label:"技能",icon:"fa-cubes",url:"/skills?embed=1",hint:"生成型 Skill 的启停、提示词与版本管理"},
+    {key:"tools",label:"工具",icon:"fa-wrench",url:"/tools?embed=1",hint:"确定性 Tool 的启停、样例与独立测试"},
+    {key:"planner",label:"规划器",icon:"fa-map-signs",url:"/planner?embed=1",hint:"Planner 提示词、必备能力与计划预览"},
+    {key:"models",label:"模型",icon:"fa-cube",url:"/models?embed=1",hint:"Provider 切换、连通性测试与演示重置"},
   ]},
 ];
-const nav=document.getElementById("nav"), panes=document.getElementById("panes");
-const btns={}, iframes={};
-GROUPS.forEach((g,gi)=>{
-  if(gi>0){
-    const d=document.createElement("span");
-    d.className="w-px self-stretch bg-white/10 mx-1 hidden sm:block"; nav.appendChild(d);
-    const cap=document.createElement("span");
-    cap.className="px-1.5 text-[10px] uppercase tracking-wider text-slate-500 font-medium select-none";
-    cap.textContent=g.label||""; nav.appendChild(cap);
-  }
-  g.items.forEach(t=>{
-    const btn=document.createElement("button");
-    btn.type="button"; btn.role="tab"; btn.id="tab-"+t.key; btn.setAttribute("aria-controls","pane-"+t.key);
-    btn.innerHTML='<i class="fa '+t.icon+' mr-1.5"></i>'+t.label;
-    btn.className="px-3 py-1.5 rounded-lg inline-flex items-center gap-0.5 font-medium transition-colors text-slate-300 hover:bg-white/10";
-    btn.onclick=()=>select(t.key,true);
-    nav.appendChild(btn); btns[t.key]=btn;
+const nav=document.getElementById("nav"), panes=document.getElementById("panes"), loading=document.getElementById("loading");
+const moduleHint=document.getElementById("moduleHint"), openNew=document.getElementById("openNew");
+const overviewPane=document.getElementById("overviewPane");
+const flat=GROUPS.flatMap(g=>g.items.map(x=>({...x,group:g.label})));
+const btns={}, frames={};
+let summaryLoaded=false;
 
-    const fr=document.createElement("iframe");
-    fr.id="pane-"+t.key; fr.setAttribute("role","tabpanel"); fr.title=t.label;
-    fr.className="w-full h-full border-0 bg-slate-100"; fr.src=t.url; fr.style.display="none";
-    panes.appendChild(fr); iframes[t.key]=fr;
+GROUPS.forEach((group,gi)=>{
+  if(gi>0){
+    const sep=document.createElement("span");
+    sep.className="w-px self-stretch bg-white/10 mx-1 hidden sm:block";
+    nav.appendChild(sep);
+  }
+  const label=document.createElement("span");
+  label.className="px-1 text-[10px] uppercase tracking-wider text-slate-500 font-semibold select-none hidden md:inline";
+  label.textContent=group.label;
+  nav.appendChild(label);
+  group.items.forEach(item=>{
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.role="tab";
+    btn.id="tab-"+item.key;
+    btn.className="module-btn px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 font-medium border border-transparent text-slate-300 hover:bg-white/10";
+    btn.innerHTML=`<i class="fa ${item.icon}"></i><span>${item.label}</span>`;
+    btn.onclick=()=>select(item.key,true);
+    nav.appendChild(btn);
+    btns[item.key]=btn;
   });
 });
+
 function activeKey(){
   const h=(location.hash||"").replace(/^#/,"").toLowerCase();
-  const keys={}; GROUPS.forEach(g=>g.items.forEach(t=>keys[t.key]=1));
-  return keys[h]?h:"work";
+  return flat.some(x=>x.key===h)?h:"overview";
 }
-function pick(k){ return GROUPS.flatMap(g=>g.items).find(t=>t.key===k); }
+function pick(k){return flat.find(x=>x.key===k)||flat[0]}
+
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function chip(cls,txt){return `<span class="text-[11px] px-2 py-0.5 rounded-full border ${cls}">${txt}</span>`}
+function pct(v){return v==null?"暂无":(v+"%")}
+function decisionTone(st){
+  return {
+    ready:["text-emerald-300","bg-emerald-400/15 border-emerald-300/20","fa-check-circle","可进入演示"],
+    review:["text-amber-300","bg-amber-400/15 border-amber-300/20","fa-eye","先复核再演示"],
+    blocked:["text-rose-300","bg-rose-400/15 border-rose-300/20","fa-ban","暂不建议演示"],
+  }[st]||["text-slate-300","bg-white/10 border-white/10","fa-info-circle","待判断"];
+}
+function miniCard(title,val,sub,tone){
+  const cls={ok:"text-emerald-600 bg-emerald-50 border-emerald-100",warn:"text-amber-600 bg-amber-50 border-amber-100",bad:"text-rose-600 bg-rose-50 border-rose-100",info:"text-slate-700 bg-slate-50 border-slate-100"}[tone||"info"];
+  return `<div class="rounded-lg border ${cls} p-3"><div class="text-[11px] opacity-75">${title}</div><div class="text-2xl font-bold leading-tight mt-1">${val}</div><div class="text-[11px] opacity-75 mt-1">${sub||""}</div></div>`;
+}
+function statusCard(title,val,sub,tone,icon,href){
+  const map={
+    ok:["border-emerald-100 bg-emerald-50/70 text-emerald-700","bg-emerald-100 text-emerald-700"],
+    warn:["border-amber-100 bg-amber-50/70 text-amber-700","bg-amber-100 text-amber-700"],
+    bad:["border-rose-100 bg-rose-50/70 text-rose-700","bg-rose-100 text-rose-700"],
+    info:["border-slate-200 bg-slate-50 text-slate-700","bg-white text-slate-500"],
+  }[tone||"info"];
+  const body=`<div class="rounded-lg border ${map[0]} p-3 h-full">
+    <div class="flex items-start gap-2">
+      <div class="w-8 h-8 rounded-lg ${map[1]} grid place-items-center shrink-0"><i class="fa ${icon||"fa-circle-o"}"></i></div>
+      <div class="min-w-0 flex-1">
+        <div class="overview-label">${esc(title)}</div>
+        <div class="text-lg font-bold leading-tight mt-1 truncate">${val}</div>
+        <div class="text-[11px] opacity-75 mt-1 leading-5">${sub||""}</div>
+      </div>
+    </div>
+  </div>`;
+  return href?`<a href="${href}" class="block h-full">${body}</a>`:body;
+}
+function issueList(items, empty){
+  if(!items||!items.length)return `<div class="text-xs text-slate-400">${esc(empty||"暂无")}</div>`;
+  return `<div class="space-y-1">${items.slice(0,4).map(x=>`<div class="flex items-start gap-2 text-xs text-slate-300"><i class="fa fa-angle-right mt-0.5 text-orange-300"></i><span>${esc(x)}</span></div>`).join("")}</div>`;
+}
+
+async function loadSummary(force){
+  if(summaryLoaded&&!force)return;
+  summaryLoaded=true;
+  loading.classList.remove("hidden");
+  try{
+    const r=await fetch("/api/console/summary");
+    const j=await r.json();
+    if(!j.ok)throw new Error(j.error||"总览加载失败");
+    renderSummary(j);
+  }catch(e){
+    document.getElementById("decisionHero").innerHTML=`<div class="text-rose-100"><i class="fa fa-exclamation-triangle"></i> ${esc(e.message||e)}</div>`;
+  }finally{
+    loading.classList.add("hidden");
+  }
+}
+
+function renderSummary(s){
+  const d=s.decision||{}, t=decisionTone(d.state);
+  const blockers=d.blockers||[], warnings=d.warnings||[];
+  document.getElementById("decisionHero").innerHTML=`
+    <div class="grid md:grid-cols-[1fr_260px] gap-5 items-start">
+      <div>
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <span class="text-xs px-2 py-1 rounded-full border ${t[1]} ${t[0]}"><i class="fa ${t[2]} mr-1"></i>${esc(t[3])}</span>
+          <span class="text-xs px-2 py-1 rounded-full border border-white/10 bg-white/10 text-slate-300">${esc((s.provider||{}).label||"Provider")}</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white leading-tight">上线决策：${esc(d.label||"待判断")}</h2>
+        <p class="mt-2 text-sm text-slate-300 leading-6 max-w-3xl">${esc(d.reason||"正在汇总系统状态。")}</p>
+        <div class="mt-5 grid sm:grid-cols-2 gap-3">
+          <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+            <div class="text-[11px] text-rose-200 font-bold mb-2">阻断项</div>
+            ${issueList(blockers,"暂无阻断项")}
+          </div>
+          <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+            <div class="text-[11px] text-amber-200 font-bold mb-2">复核提醒</div>
+            ${issueList(warnings,"暂无复核提醒")}
+          </div>
+        </div>
+      </div>
+      <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+        <div class="text-[11px] text-slate-400 font-bold mb-2">核心链路</div>
+        <div class="space-y-2 text-xs">
+          <div class="metric-row"><span class="text-slate-400">发现问题</span><span class="h-1.5 rounded-full bg-orange-400"></span></div>
+          <div class="metric-row"><span class="text-slate-400">沉淀改进</span><span class="h-1.5 rounded-full bg-orange-400"></span></div>
+          <div class="metric-row"><span class="text-slate-400">回归评测</span><span class="h-1.5 rounded-full bg-orange-400"></span></div>
+          <div class="metric-row"><span class="text-slate-400">上线判断</span><span class="h-1.5 rounded-full ${d.state==="ready"?"bg-emerald-400":d.state==="blocked"?"bg-rose-400":"bg-amber-400"}"></span></div>
+        </div>
+        <a href="/console#eval" class="mt-4 brand-button brand-button-primary px-4 py-2 text-sm w-full">跑回归评测</a>
+      </div>
+    </div>`;
+  const q=s.catalogQuality||{}, qc=q.counts||{}, latest=(s.eval||{}).latest||{}, metrics=(s.ops||{}).metrics||{}, provider=s.provider||{};
+  document.getElementById("gateMeta").textContent="汇总于 "+esc((q.checkedAt||"").replace("T"," ").slice(0,16));
+  document.getElementById("gateGrid").innerHTML=
+    statusCard("模型状态",provider.demo?"演示模式":(provider.llm_ready?"已就绪":"未配置"),esc(provider.model||"")+" · "+(provider.hint?esc(provider.hint):"Provider 可用"),provider.llm_ready||provider.demo?"ok":"bad","fa-plug","/console#models")+
+    statusCard("目录健康",qc.error?qc.error+" 阻断":(qc.warning?qc.warning+" 提醒":"通过"),qc.error?"先修复商品、活动或优惠券":"商品、活动、券可用于演示",qc.error?"bad":qc.warning?"warn":"ok","fa-sitemap","/console#catalog")+
+    statusCard("评测回归",latest.id?pct(latest.passRate):"暂无",latest.id?`${latest.passed||0} PASS · ${latest.failed||0} FAIL · ${latest.review||0} REVIEW`:"建议先跑一次默认评测",latest.failed||latest.errors?"warn":latest.id?"ok":"info","fa-flask","/console#eval")+
+    statusCard("运营信号",metrics.total||0,`低分 ${(metrics.ratings||{}).low||0} · 失败步骤 ${metrics.failedSteps||0} · 风险 ${metrics.riskRuns||0}`,metrics.failedSteps||((metrics.ratings||{}).low)?"warn":"ok","fa-line-chart","/console#ops");
+  document.getElementById("nextActions").innerHTML=(s.nextActions||[]).map((a,i)=>`<a href="${esc(a.target)}" class="block rounded-lg border border-slate-200 px-3 py-2.5 text-sm hover:border-orange-200 hover:bg-orange-50">
+    <div class="flex items-center gap-2"><span class="w-5 h-5 rounded bg-orange-50 text-orange-600 grid place-items-center text-[11px] font-bold">${i+1}</span><span class="font-medium text-slate-700">${esc(a.label)}</span><i class="fa fa-angle-right ml-auto text-slate-300"></i></div>
+  </a>`).join("");
+  renderEvalSummary(s.eval||{});
+  renderCatalog(q);
+  renderOps(s.ops||{});
+  renderChanges(s.catalogChanges||[]);
+  openNew.href="/console";
+  moduleHint.textContent="总览 / 决策看板 · 上线门禁、评测回归、目录健康和运营问题闭环";
+}
+
+function renderEvalSummary(ev){
+  const latest=ev.latest, prev=ev.previous, cmp=ev.comparison;
+  if(!latest){document.getElementById("evalSummary").innerHTML=`<div class="text-sm text-slate-400 py-8 text-center">暂无评测批次，建议从默认启用集跑第一批回归。</div>`;return;}
+  const counts=(cmp&&cmp.counts)||{};
+  const rate=latest.passRate==null?0:Number(latest.passRate);
+  const ring=`background:conic-gradient(#10b981 ${Math.max(0,Math.min(100,rate))}%, #e2e8f0 0)`;
+  document.getElementById("evalSummary").innerHTML=`
+    <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div class="mx-auto w-28 h-28 rounded-full grid place-items-center" style="${ring}">
+          <div class="w-20 h-20 rounded-full bg-white grid place-items-center shadow-sm">
+            <div class="text-center"><div class="text-2xl font-bold text-slate-800">${pct(latest.passRate)}</div><div class="text-[10px] text-slate-400">通过率</div></div>
+          </div>
+        </div>
+        <div class="mt-3 text-center text-xs text-slate-500">${esc(latest.versionLabel||latest.name||"最近批次")}</div>
+      </div>
+      <div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          ${miniCard("新增失败",counts.regressed||0,cmp?"较上一批":"需两批对比",counts.regressed?"bad":"ok")}
+          ${miniCard("已修复",counts.fixed||0,cmp?"较上一批":"需两批对比","ok")}
+          ${miniCard("需复核",latest.review||0,"REVIEW 不进通过率",latest.review?"warn":"ok")}
+          ${miniCard("异常",latest.errors||0,"ERROR 不进分母",latest.errors?"bad":"ok")}
+        </div>
+        <div class="rounded-lg bg-white border border-slate-200 p-3 text-xs text-slate-600">
+          <div class="font-semibold text-slate-700 mb-1">回归结论</div>
+          <div>${cmp?esc(cmp.verdict||"两批暂无明显差异"):prev?"两批不可直接比较或缺少可比结果":"暂无上一批可比较结果"}${ev.activeBatchId?` · 当前运行中 ${esc(ev.activeBatchId)}`:""}</div>
+          <div class="mt-2 flex flex-wrap gap-1">${chip("border-emerald-100 bg-emerald-50 text-emerald-700",`${latest.passed||0} PASS`)}${chip("border-rose-100 bg-rose-50 text-rose-700",`${latest.failed||0} FAIL`)}${chip("border-amber-100 bg-amber-50 text-amber-700",`${latest.review||0} REVIEW`)}${chip("border-slate-200 bg-slate-50 text-slate-600",`${latest.errors||0} ERROR`)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderCatalog(q){
+  const rows=q.issues||[];
+  const counts=q.counts||{};
+  document.getElementById("catalogSummary").innerHTML=`
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      ${miniCard("阻断",counts.error||0,"影响上线判断",counts.error?"bad":"ok")}
+      ${miniCard("提醒",counts.warning||0,"建议演示前复核",counts.warning?"warn":"ok")}
+    </div>`+(rows.length?`<div class="space-y-2">${rows.slice(0,5).map(x=>{
+    const bad=x.level==="error";
+    return `<div class="rounded-lg border ${bad?"border-rose-100 bg-rose-50":"border-amber-100 bg-amber-50"} px-3 py-2 text-xs">
+      <div class="font-semibold ${bad?"text-rose-700":"text-amber-700"}">${esc(x.kind)} / ${esc(x.itemId||"-")} · ${esc(x.message)}</div>
+      <div class="text-slate-500 mt-0.5">${esc(x.action||"请复核")}</div>
+    </div>`;}).join("")}</div>`:`<div class="rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700 px-3 py-3 text-sm"><i class="fa fa-check-circle"></i> 商品、活动、优惠券健康。</div>`);
+}
+
+function renderOps(ops){
+  const rows=ops.clusters||[];
+  const sevCls={high:"border-rose-100 bg-rose-50",mid:"border-amber-100 bg-amber-50",low:"border-slate-200 bg-slate-50"};
+  document.getElementById("opsIssues").innerHTML=rows.length?`<div class="space-y-2">${rows.map(c=>`<div class="rounded-lg border ${sevCls[c.severity]||sevCls.low} px-3 py-2 text-xs">
+    <div class="flex items-center gap-2"><b class="text-slate-700">${esc(c.title)}</b>${chip("border-slate-200 bg-white text-slate-500",esc(c.method||"规则聚类"))}<span class="ml-auto text-slate-500 font-bold">${c.count||0} 条</span></div>
+    <p class="text-slate-500 mt-1">${esc(c.hint||"")}</p>
+    ${(c.samples||[]).length?`<div class="mt-2 flex flex-wrap gap-1">${(c.samples||[]).slice(0,3).map(s=>chip("border-white bg-white/70 text-slate-500",esc(s.runId||s.ratingId||s.annotationId||"样本"))).join("")}</div>`:""}
+  </div>`).join("")}</div>`:`<div class="text-sm text-slate-400 py-8 text-center">暂无风险、低分或失败聚类。</div>`;
+}
+
+function renderChanges(rows){
+  const actText={create:"新增",update:"编辑",delete:"删除"};
+  document.getElementById("catalogChanges").innerHTML=rows.length?`<div class="space-y-2">${rows.map(r=>`<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs flex items-center gap-2">
+    ${chip("border-orange-100 bg-orange-50 text-orange-700",esc(actText[r.action]||r.action||"变更"))}
+    <div class="min-w-0 flex-1">
+      <div class="font-medium text-slate-700 truncate">${esc(r.kind)} / ${esc(r.itemName||r.itemId||"-")}</div>
+      <div class="text-slate-400">${esc(((r.changes||[]).map(x=>x.field).slice(0,4).join("、"))||"无字段差异")}</div>
+    </div>
+    <span class="text-slate-400 shrink-0">${esc((r.createdAt||r.at||"").replace("T"," ").slice(0,16))}</span>
+  </div>`).join("")}</div>`:`<div class="text-sm text-slate-400 py-8 text-center">暂无目录变更记录。</div>`;
+}
+
+function ensureFrame(item){
+  if(frames[item.key]) return frames[item.key];
+  const fr=document.createElement("iframe");
+  fr.id="pane-"+item.key;
+  fr.title=item.label;
+  fr.setAttribute("role","tabpanel");
+  fr.className="w-full h-full border-0 bg-slate-100";
+  fr.src=item.url;
+  fr.style.display="none";
+  fr.onload=()=>{ if(currentKey===item.key) loading.classList.add("hidden"); };
+  panes.appendChild(fr);
+  frames[item.key]=fr;
+  return fr;
+}
+
+let currentKey="";
 function select(k,pushHash){
-  GROUPS.flatMap(g=>g.items).forEach(t=>{
-    const on=t.key===k;
-    btns[t.key].className="px-3 py-1.5 rounded-lg inline-flex items-center gap-0.5 font-medium transition-colors "
-      +(on?"bg-white text-slate-900 shadow":"text-slate-300 hover:bg-white/10");
+  const item=pick(k);
+  currentKey=item.key;
+  loading.classList.remove("hidden");
+  overviewPane.classList.toggle("hidden",item.key!=="overview");
+  panes.classList.toggle("hidden",item.key==="overview");
+  flat.forEach(t=>{
+    const on=t.key===item.key;
+    btns[t.key].className="module-btn px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 font-medium border "
+      +(on?"bg-white text-slate-950 border-white shadow":"border-transparent text-slate-300 hover:bg-white/10");
     btns[t.key].setAttribute("aria-selected",on?"true":"false");
-    iframes[t.key].style.display=on?"":"none";
+    if(frames[t.key]) frames[t.key].style.display=on&&item.key!=="overview"?"":"none";
   });
-  const it=pick(k);
-  document.getElementById("openNew").href=(it?it.url.split("?")[0]:"/"); // 独立入口走原始路由
-  if(pushHash && location.hash!=="#"+k){ try{history.replaceState(null,"","#"+k);}catch(e){location.hash="#"+k;} }
+  if(item.key==="overview"){
+    loading.classList.add("hidden");
+    loadSummary(false);
+    openNew.href="/console";
+    if(pushHash && location.hash!=="#"+item.key){
+      try{history.replaceState(null,"","#"+item.key)}catch(e){location.hash="#"+item.key}
+    }
+    return;
+  }
+  const fr=ensureFrame(item);
+  fr.style.display="";
+  moduleHint.textContent=`${item.group} / ${item.label} · ${item.hint}`;
+  openNew.href=item.url.split("?")[0];
+  if(pushHash && location.hash!=="#"+item.key){
+    try{history.replaceState(null,"","#"+item.key)}catch(e){location.hash="#"+item.key}
+  }
+  if(fr.contentDocument&&fr.contentDocument.readyState==="complete") loading.classList.add("hidden");
 }
+
 select(activeKey(),false);
 window.addEventListener("hashchange",()=>select(activeKey(),false));
+document.getElementById("refreshSummary").onclick=()=>loadSummary(true);
 </script>
 </body>
 </html>
