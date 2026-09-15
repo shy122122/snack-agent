@@ -1,33 +1,44 @@
 # 项目链接配置
 
-这几条链接可以放到简历或作品集里：
+这几条链接可以放到简历或作品集里。
+
+## 当前可用链接
 
 | 类型 | 链接 |
 |---|---|
 | GitHub 项目 | `https://github.com/shy122122/snack-agent` |
-| 项目展示页 | `https://shy122122.github.io/snack-agent/` |
-| 在线前端 | `https://snack-agent.onrender.com/console#overview` |
-| PRD 文档 | `https://shy122122.github.io/snack-agent/PRD.md` |
+| 项目展示页（推荐） | `https://cdn.jsdelivr.net/gh/shy122122/snack-agent@main/docs/index.html` |
+| 项目展示页（备用） | `https://htmlpreview.github.io/?https://github.com/shy122122/snack-agent/blob/main/docs/index.html` |
+| PRD 文档 | `https://github.com/shy122122/snack-agent/blob/main/docs/PRD.md` |
+| 在线前端配置 | `https://github.com/shy122122/snack-agent/blob/main/render.yaml` |
 
-## GitHub Pages
+## 简历建议写法
 
-项目展示页位于 `docs/index.html`，GitHub Actions 会将 `docs/` 发布到 GitHub Pages。
+```text
+GitHub：https://github.com/shy122122/snack-agent
+项目展示：https://cdn.jsdelivr.net/gh/shy122122/snack-agent@main/docs/index.html
+PRD文档：https://github.com/shy122122/snack-agent/blob/main/docs/PRD.md
+```
 
-发布后入口：
+## 正式 GitHub Pages 链接
+
+后续在仓库 `Settings -> Pages` 中将 Source 设置为 `GitHub Actions` 后，正式展示页会是：
 
 ```text
 https://shy122122.github.io/snack-agent/
 ```
 
-PRD 链接：
-
-```text
-https://shy122122.github.io/snack-agent/PRD.md
-```
+如果 GitHub Pages 没开启，上面这个正式链接会打不开；在此之前先使用 jsDelivr 展示链接。
 
 ## Render 在线前端
 
 项目已补充 `render.yaml` 和 `server.py`，适合部署到 Render。
+
+部署入口：
+
+```text
+https://render.com/deploy?repo=https://github.com/shy122122/snack-agent
+```
 
 部署后入口通常为：
 
@@ -35,4 +46,4 @@ https://shy122122.github.io/snack-agent/PRD.md
 https://snack-agent.onrender.com/console#overview
 ```
 
-如果 Render 自动生成了不同域名，把简历里的「在线前端」替换为实际域名即可。
+如果 Render 自动生成了不同域名，把简历里的「在线前端」链接替换为实际域名即可。
