@@ -7,16 +7,17 @@
 | 类型 | 链接 |
 |---|---|
 | GitHub 项目 | `https://github.com/shy122122/snack-agent` |
-| 项目展示页（推荐） | `https://cdn.jsdelivr.net/gh/shy122122/snack-agent@main/docs/index.html` |
-| 项目展示页（备用） | `https://htmlpreview.github.io/?https://github.com/shy122122/snack-agent/blob/main/docs/index.html` |
+| 项目展示页（当前推荐） | `https://htmlpreview.github.io/?https://github.com/shy122122/snack-agent/blob/main/docs/index.html` |
 | PRD 文档 | `https://github.com/shy122122/snack-agent/blob/main/docs/PRD.md` |
 | 在线前端配置 | `https://github.com/shy122122/snack-agent/blob/main/render.yaml` |
+
+> 不建议把 `cdn.jsdelivr.net/gh/.../index.html` 放到简历里。jsDelivr 更适合分发静态文件，打开 HTML 时可能显示源码，而不是渲染页面。
 
 ## 简历建议写法
 
 ```text
 GitHub：https://github.com/shy122122/snack-agent
-项目展示：https://cdn.jsdelivr.net/gh/shy122122/snack-agent@main/docs/index.html
+项目展示：https://htmlpreview.github.io/?https://github.com/shy122122/snack-agent/blob/main/docs/index.html
 PRD文档：https://github.com/shy122122/snack-agent/blob/main/docs/PRD.md
 ```
 
@@ -28,7 +29,7 @@ PRD文档：https://github.com/shy122122/snack-agent/blob/main/docs/PRD.md
 https://shy122122.github.io/snack-agent/
 ```
 
-如果 GitHub Pages 没开启，上面这个正式链接会打不开；在此之前先使用 jsDelivr 展示链接。
+如果 GitHub Pages 没开启，上面这个正式链接会打不开；在此之前先使用 HTMLPreview 链接。
 
 ## Render 在线前端
 
