@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: snack-agent
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: SNACK_LLM_PROVIDER
+        value: demo-fixture
+      - key: PYTHON_VERSION
+        value: 3.11.9
