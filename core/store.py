@@ -3,14 +3,50 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+REPO_DATA_DIR = ROOT / "data"
+SEED_DATA_DIR = ROOT / "data_seed"
+DATA_DIR = Path(os.environ.get("SNACK_DATA_DIR", REPO_DATA_DIR)).expanduser()
 _lock = threading.Lock()
+
+
+def seed_file(name: str) -> Path:
+    """返回标准演示数据文件；兼容旧仓库缺少 data_seed 的情况。"""
+    p = SEED_DATA_DIR / name
+    return p if p.exists() else REPO_DATA_DIR / name
+
+
+def _init_data_dir() -> None:
+    """初始化运行期数据目录；Render Disk 为空时，用仓库种子数据补齐。"""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        same_dir = DATA_DIR.resolve() == REPO_DATA_DIR.resolve()
+    except FileNotFoundError:
+        same_dir = False
+    if same_dir:
+        return
+    for name in (
+        "products.json",
+        "activities.json",
+        "coupons.json",
+        "service.json",
+        "skills.json",
+        "eval_cases.json",
+    ):
+        src = seed_file(name)
+        dst = DATA_DIR / name
+        if src.exists() and not dst.exists():
+            shutil.copyfile(src, dst)
+
+
+_init_data_dir()
 
 
 def now_iso():
@@ -28,6 +64,7 @@ def read_json(path: Path, default):
 def write_json(path: Path, obj) -> None:
     tmp = path.with_suffix(".tmp")
     with _lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with tmp.open("w", encoding="utf-8") as f:
             json.dump(obj, f, ensure_ascii=False, indent=2)
         tmp.replace(path)

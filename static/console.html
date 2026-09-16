@@ -49,7 +49,8 @@
         <section class="overview-card p-4">
           <div class="flex items-center gap-2 mb-3">
             <h2 class="font-bold text-sm text-slate-700">建议下一步</h2>
-            <button id="refreshSummary" class="ml-auto px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50" title="刷新"><i class="fa fa-refresh"></i></button>
+            <button id="restoreDemo" class="ml-auto px-2.5 py-1.5 rounded-lg border border-orange-200 bg-orange-50 text-xs text-orange-700 hover:bg-orange-100" title="恢复标准演示数据"><i class="fa fa-history"></i> 恢复演示数据</button>
+            <button id="refreshSummary" class="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50" title="刷新"><i class="fa fa-refresh"></i></button>
           </div>
           <div id="nextActions" class="space-y-2"></div>
         </section>
@@ -208,6 +209,28 @@ async function loadSummary(force){
     document.getElementById("decisionHero").innerHTML=`<div class="text-rose-100"><i class="fa fa-exclamation-triangle"></i> ${esc(e.message||e)}</div>`;
   }finally{
     loading.classList.add("hidden");
+  }
+}
+
+async function restoreDemoData(){
+  const msg="确认恢复标准演示数据？\n将恢复商品目录、活动、优惠券、订单售后数据、评测用例、Skills、评测批次和运营改进记录。\n密钥和历史 Run 不会删除。";
+  if(!confirm(msg)) return;
+  const btn=document.getElementById("restoreDemo");
+  const old=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<i class="fa fa-circle-o-notch fa-spin"></i> 恢复中';
+  try{
+    const r=await fetch("/api/system/demo-reset",{method:"POST"});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.ok===false) throw new Error(j.error||("HTTP "+r.status));
+    summaryLoaded=false;
+    await loadSummary(true);
+    alert("标准演示数据已恢复。商品目录和评测中心可以重新打开查看。");
+  }catch(e){
+    alert("恢复失败："+(e.message||e));
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=old;
   }
 }
 
@@ -383,6 +406,7 @@ function select(k,pushHash){
 select(activeKey(),false);
 window.addEventListener("hashchange",()=>select(activeKey(),false));
 document.getElementById("refreshSummary").onclick=()=>loadSummary(true);
+document.getElementById("restoreDemo").onclick=restoreDemoData;
 </script>
 </body>
 </html>

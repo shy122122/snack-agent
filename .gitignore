@@ -17,6 +17,10 @@ data/tool_state.json
 data/planner_config.json
 data/llm_state.json
 data/catalog_changes.json
+data/ops_annotations.json
+data/ops_improvements.json
+data/ops_ratings.json
+data/ops_ab_tests.json
 
 # ---- 日志与输出 ----
 *.log

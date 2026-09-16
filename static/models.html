@@ -107,15 +107,15 @@ function renderEff(){
       <div class="text-right text-xs text-slate-400 shrink-0">生效优先级<br/><b class="mono">环境变量 &gt; 后台已选 &gt; 默认</b></div>
     </div>
     ${e.demo?`<div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
-      <div class="text-xs text-slate-500 mr-auto max-w-xl"><i class="fa fa-eraser mr-1 text-rose-400"></i>演示重置：把 <b>评测集 / Skills / Skill 版本 / 评测批次 / 运营标注 / 改进建议</b> 恢复到「已知初始态」（幂等；商品 / 订单 / 密钥等基础数据不动）。</div>
+      <div class="text-xs text-slate-500 mr-auto max-w-xl"><i class="fa fa-eraser mr-1 text-rose-400"></i>演示重置：把 <b>商品目录 / 活动 / 优惠券 / 服务数据 / 评测集 / Skills / 评测批次 / 运营标注 / 改进建议</b> 恢复到标准演示态（幂等；密钥和历史 Run 不动）。</div>
       <button onclick="demoReset()" class="px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium shadow-sm"><i class="fa fa-refresh mr-1"></i>执行演示重置</button>
     </div>`:""}
   </div>`;
 }
 
 async function demoReset(){
-  const lines=["评测集(仅9种子)","Skills(默认6)","Skill 版本快照","评测批次","运营标注","改进建议"];
-  if(!confirm("确认执行演示重置？\n将恢复：\n  · "+lines.join("\n  · ")+"\n商品/订单/密钥等不动。此操作不可撤销。")) return;
+  const lines=["商品目录","满减活动","优惠券","订单/售后服务数据","评测集","Skills","Skill 版本快照","评测批次","运营标注","改进建议"];
+  if(!confirm("确认恢复标准演示数据？\n将恢复：\n  · "+lines.join("\n  · ")+"\n密钥和历史 Run 不动。此操作不可撤销。")) return;
   try{
     const j=await api("/api/system/demo-reset","POST");
     if(!j.ok){ if(j.activeBatchId) toast("有批次运行中，请先取消/等待："+j.activeBatchId,"err"); else toast(j.error||"重置失败","err"); return; }

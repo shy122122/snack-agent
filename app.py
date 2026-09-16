@@ -1755,7 +1755,7 @@ def eval_batch_cancel(bid):
 # ---------------------------------------------------------------- 演示重置（受控）
 @app.post("/api/system/demo-reset")
 def demo_reset_api():
-    """恢复演示态到「已知初始态」（仅演示模式放行；有运行中批次拒绝）。"""
+    """恢复标准演示数据（仅演示模式放行；有运行中批次拒绝）。"""
     if providers.effective_provider_name() != "demo-fixture":
         return _fail("演示重置仅允许在演示模式（SNACK_LLM_PROVIDER=demo-fixture）下执行；"
                      f"当前为真实 Provider={providers.effective_provider_name()}，已拒绝以防误清。", 403)

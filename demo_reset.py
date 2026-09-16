@@ -52,7 +52,7 @@ def main():
     print("演示重置完成（幂等 · 原子写入）")
     for item in summary["restored"]:
         print(f"  · {item['label']:6s} {item['file']:22s} {item['from']:>3d} → {item['to']:>3d}   {item['note']}")
-    print(f"  未触碰 {len(summary['untouched'])} 项业务/配置数据（含商品/订单/密钥）")
+    print(f"  未触碰 {len(summary['untouched'])} 项历史/配置数据（含历史 Run、密钥和模型配置）")
     return 0
 
 
